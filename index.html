@@ -5,10 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>实时聊天室</title>
     <link rel=icon href=https://s3.bmp.ovh/imgs/2025/09/13/b31e39e1af3bb3c7.webp type=image/x-icon>
-    <!-- 引入 bcryptjs 和 FingerprintJS -->
     <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
-    <!-- 使用官方 Supabase CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Microsoft YaHei', sans-serif; }
@@ -74,7 +72,6 @@
         .remember-me input[type="checkbox"] { width: 18px; height: 18px; accent-color: #2563eb; cursor: pointer; }
         .remember-me label { font-size: 0.9rem; color: #475569; cursor: pointer; margin: 0; }
 
-        /* IP限制遮罩层 - 简化版 */
         .ip-block-overlay {
             display: none;
             position: fixed;
@@ -124,7 +121,7 @@
         <p>抱歉，该聊天室仅限<strong>中国大陆地区</strong>用户访问。</p>
         <p style="font-size:0.9rem;color:#64748b;">根据服务条款，港澳台及海外IP暂不支持访问。</p>
         <div class="ip-info">
-            检测到您的IP：<span id="blockedIpDisplay">加载中...</span><br>
+            您的IP：<span id="blockedIpDisplay">加载中...</span><br>
             归属地：<span id="blockedLocationDisplay">加载中...</span>
         </div>
         <button class="btn-close-block" onclick="location.reload()">重新检测</button>
@@ -133,7 +130,6 @@
 </div>
 
 <div class="app-container" id="app">
-    <!-- 登录卡片 -->
     <div id="loginPanel" class="login-card">
         <span class="auto-login-badge" id="autoLoginBadge" style="display:none;">自动登录</span>
         <h2>隆职聊天室</h2>
@@ -155,7 +151,6 @@
         <div style="margin-top: 20px; text-align: center; color: #475569; font-size:0.9rem;">已有账号直接登录，新账号自动注册</div>
     </div>
 
-    <!-- 聊天主面板 -->
     <div id="chatPanel" style="display: none; width: 100%;">
         <div style="display: flex; flex-wrap: wrap; gap: 20px; width: 100%;">
             <div class="chat-main">
@@ -193,7 +188,6 @@
     </div>
 </div>
 
-<!-- 公告弹窗 -->
 <div class="modal" id="bulletinModal">
     <div class="modal-content">
         <h3>聊天室公告</h3>
@@ -269,13 +263,16 @@
             detectedIP = ip;
             ipSpan.innerHTML = `你的IP：<span style="color:#2563eb;">${ip}</span>`;
 
-            // 2. 用获取到的IP查询归属地
-            const locationResponse = await fetch(`https://ip9.com.cn/get?ip=${ip}`, {
-                mode: 'cors',
-                headers: { 'Accept': 'application/json' }
-            });
+            // 2. 用获取到的IP查询归属地（使用 ip9.com.cn）
+            const requestOptions = {
+                method: "GET",
+                redirect: "follow"
+            };
+            
+            const locationResponse = await fetch(`https://ip9.com.cn/get?ip=${ip}`, requestOptions);
             if (!locationResponse.ok) throw new Error('查询归属地失败');
-            const locationData = await locationResponse.json();
+            const text = await locationResponse.text();
+            const locationData = JSON.parse(text);
             
             // 解析返回数据
             if (locationData.ret === 200 && locationData.data) {
@@ -432,7 +429,7 @@
 
             loginPanel.style.display = 'none';
             chatPanel.style.display = 'block';
-            userInfoDiv.textContent = `👤 ${currentUser.username} (${currentUser.ip})`;
+            userInfoDiv.textContent = `👤${currentUser.username} (${currentUser.ip})`;
 
             startHeartbeat();
             loadMessages();
@@ -560,7 +557,8 @@
 
     function subscribeHeartbeats() {
         if (heartbeatsSubscription) heartbeatsSubscription.unsubscribe();
-        heartbeatsSubscription = _supabase            .channel('heartbeats-changes')
+        heartbeatsSubscription = _supabase
+            .channel('heartbeats-changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'heartbeats' }, () => loadOnlineUsers())
             .subscribe();
     }
