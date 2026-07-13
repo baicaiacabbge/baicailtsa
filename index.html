@@ -7,7 +7,7 @@
     <link rel=icon href=https://s3.bmp.ovh/imgs/2025/09/13/b31e39e1af3bb3c7.webp type=image/x-icon>
     <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="supabase.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Microsoft YaHei', sans-serif; }
         body { background: linear-gradient(145deg, #f0f4fa 0%, #d9e2ef 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 16px; }
@@ -121,7 +121,7 @@
         <p>抱歉，该聊天室仅限<strong>中国大陆地区</strong>用户访问。</p>
         <p style="font-size:0.9rem;color:#64748b;">根据服务条款，港澳台及海外IP暂不支持访问。</p>
         <div class="ip-info">
-            你的的IP：<span id="blockedIpDisplay">加载中...</span><br>
+            检测到您的IP：<span id="blockedIpDisplay">加载中...</span><br>
             归属地：<span id="blockedLocationDisplay">加载中...</span>
         </div>
         <button class="btn-close-block" onclick="location.reload()">重新检测</button>
@@ -190,7 +190,7 @@
 
 <div class="modal" id="bulletinModal">
     <div class="modal-content">
-        <h3>聊天室公告</h3>
+        <h3>📋 聊天室公告</h3>
         <p id="bulletinContent">加载中...</p>
         <div class="close-modal">
             <button id="closeModalBtn">关闭</button>
@@ -249,11 +249,95 @@
     const blockedIpDisplay = document.getElementById('blockedIpDisplay');
     const blockedLocationDisplay = document.getElementById('blockedLocationDisplay');
 
-    // ========== 获取IP并检测归属地（使用 uapis.cn） ==========
+    // ========== 多接口备用查询（自动切换）- 已修复 ==========
+    async function queryIPLocation(ip) {
+        const apiList = [
+            // 接口1: ip.useragentinfo.com
+            {
+                url: 'https://ip.useragentinfo.com/json',
+                parse: function(data) {
+                    return {
+                        country: data.country || '',
+                        province: data.province || '',
+                        city: data.city || ''
+                    };
+                }
+            },
+            // 接口2: whois.pconline.com.cn
+            {
+                url: `https://whois.pconline.com.cn/ipJson.jsp?ip=${ip}&json=true`,
+                parse: function(data) {
+                    return {
+                        country: '中国',
+                        province: data.pro || '',
+                        city: data.city || ''
+                    };
+                },
+                isText: true
+            },
+            // 接口3: myip.ipip.net（修复解析 - 数据在 data 字段里）
+            {
+                url: 'https://myip.ipip.net/json',
+                parse: function(data) {
+                    // myip.ipip.net 返回格式: { ret: "ok", data: { ip: "xxx", location: ["国家", "省份", "城市", "", ""] } }
+                    const locationData = data.data || {};
+                    const location = locationData.location || [];
+                    return {
+                        country: location[0] || '',
+                        province: location[1] || '',
+                        city: location[2] || ''
+                    };
+                }
+            }
+        ];
+
+        for (let i = 0; i < apiList.length; i++) {
+            try {
+                const api = apiList[i];
+                console.log(`尝试接口 ${i + 1}:`, api.url);
+                
+                const response = await fetch(api.url, {
+                    mode: 'cors',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                if (!response.ok) {
+                    console.warn(`接口 ${i + 1} 失败 (HTTP ${response.status})`);
+                    continue;
+                }
+                
+                let data;
+                if (api.isText) {
+                    const text = await response.text();
+                    data = JSON.parse(text);
+                } else {
+                    data = await response.json();
+                }
+                
+                console.log(`接口 ${i + 1} 成功:`, data);
+                
+                const result = api.parse(data);
+                // 如果省份和城市都为空，说明这个接口没查到有效数据
+                if (!result.province && !result.city) {
+                    console.warn(`接口 ${i + 1} 返回数据为空，尝试下一个`);
+                    continue;
+                }
+                
+                return result;
+                
+            } catch (error) {
+                console.warn(`接口 ${i + 1} 异常:`, error.message);
+            }
+        }
+        
+        throw new Error('所有IP查询接口均失败');
+    }
+
+    // ========== 获取IP并检测归属地 ==========
     async function getIPAndLocation() {
         try {
             // 1. 先获取公网IP
-            const ipResponse = await fetch('https://api.ip.sb/jsonip', { 
+            const ipResponse = await fetch('https://api.ip.sb/jsonip', {
                 mode: 'cors',
                 headers: { 'Accept': 'application/json' }
             });
@@ -263,58 +347,29 @@
             detectedIP = ip;
             ipSpan.innerHTML = `你的IP：<span style="color:#2563eb;">${ip}</span>`;
 
-            // 2. 用获取到的IP查询归属地（使用 uapis.cn）
-            const locationResponse = await fetch(`https://uapis.cn/api/v1/network/ipinfo?ip=${ip}&source=commercial`, {
-                mode: 'cors',
-                headers: { 'Accept': 'application/json' }
-            });
+            // 2. 使用多接口查询归属地
+            const location = await queryIPLocation(ip);
             
-            if (!locationResponse.ok) {
-                // 如果状态码是404，说明IP未找到，默认放行
-                if (locationResponse.status === 404) {
-                    console.warn('IP未找到，默认放行');
-                    return { ip, country: '', province: '', city: '', isMainland: true };
-                }
-                throw new Error('查询归属地失败');
-            }
-            
-            const data = await locationResponse.json();
-            
-            // 检查是否有错误码
-            if (data.code) {
-                console.warn('API返回错误:', data.message);
-                return { ip, country: '', province: '', city: '', isMainland: true };
-            }
-            
-            // 解析返回数据
-            const region = data.region || '';  // 格式：国家 省份 城市
-            const isp = data.isp || '';
-            
-            // 尝试解析 region 字段
-            let country = '';
-            let province = '';
-            let city = '';
-            
-            if (region) {
-                const parts = region.split(' ');
-                if (parts.length >= 1) country = parts[0] || '';
-                if (parts.length >= 2) province = parts[1] || '';
-                if (parts.length >= 3) city = parts[2] || '';
-            }
-            
+            const country = location.country || '中国';
+            const province = location.province || '';
+            const city = location.city || '';
+
             // 更新遮罩层信息
             blockedIpDisplay.textContent = ip;
-            blockedLocationDisplay.textContent = region || '未知';
-            
+            blockedLocationDisplay.textContent = country + ' ' + province + ' ' + city;
+
             // 判断是否为中国大陆（不含港澳台）
-            const isChina = country === '中国' || country === 'CN' || region.includes('中国');
-            const isSpecialRegion = province.includes('香港') || province.includes('澳门') || province.includes('台湾') || 
+            const isChina = country === '中国' || country === 'CN' || country === 'China';
+            const isSpecialRegion = province.includes('香港') || province.includes('澳门') || province.includes('台湾') ||
                                    city.includes('香港') || city.includes('澳门') || city.includes('台湾') ||
-                                   region.includes('香港') || region.includes('澳门') || region.includes('台湾');
+                                   country.includes('香港') || country.includes('澳门') || country.includes('台湾');
             const isMainland = isChina && !isSpecialRegion;
-            
-            return { ip, country, province, city, isMainland, data, region };
-            
+
+            console.log('IP归属地:', country, province, city);
+            console.log('是否允许访问:', isMainland);
+
+            return { ip, country, province, city, isMainland };
+
         } catch (error) {
             console.warn('IP检测失败:', error);
             // 失败时默认放行（不影响国内用户）
