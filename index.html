@@ -121,7 +121,7 @@
         <p>抱歉，该聊天室仅限<strong>中国大陆地区</strong>用户访问。</p>
         <p style="font-size:0.9rem;color:#64748b;">根据服务条款，港澳台及海外IP暂不支持访问。</p>
         <div class="ip-info">
-            您的IP：<span id="blockedIpDisplay">加载中...</span><br>
+            你的的IP：<span id="blockedIpDisplay">加载中...</span><br>
             归属地：<span id="blockedLocationDisplay">加载中...</span>
         </div>
         <button class="btn-close-block" onclick="location.reload()">重新检测</button>
@@ -168,7 +168,7 @@
             </div>
             <div class="online-sidebar">
                 <div class="online-title">
-                    <span>👥在线列表</span>
+                    <span>在线列表</span>
                     <span style="font-size: 0.9rem; background: rgba(255,255,255,0.5); padding: 4px 12px; border-radius:40px;" id="onlineCount">0 在线</span>
                 </div>
                 <ul class="online-list" id="onlineList">
@@ -249,7 +249,7 @@
     const blockedIpDisplay = document.getElementById('blockedIpDisplay');
     const blockedLocationDisplay = document.getElementById('blockedLocationDisplay');
 
-    // ========== 获取IP并检测归属地（使用 ip9.com.cn） ==========
+    // ========== 获取IP并检测归属地（使用 uapis.cn） ==========
     async function getIPAndLocation() {
         try {
             // 1. 先获取公网IP
@@ -263,38 +263,57 @@
             detectedIP = ip;
             ipSpan.innerHTML = `你的IP：<span style="color:#2563eb;">${ip}</span>`;
 
-            // 2. 用获取到的IP查询归属地（使用 ip9.com.cn）
-            const requestOptions = {
-                method: "GET",
-                redirect: "follow"
-            };
+            // 2. 用获取到的IP查询归属地（使用 uapis.cn）
+            const locationResponse = await fetch(`https://uapis.cn/api/v1/network/ipinfo?ip=${ip}&source=commercial`, {
+                mode: 'cors',
+                headers: { 'Accept': 'application/json' }
+            });
             
-            const locationResponse = await fetch(`https://ip9.com.cn/get?ip=${ip}`, requestOptions);
-            if (!locationResponse.ok) throw new Error('查询归属地失败');
-            const text = await locationResponse.text();
-            const locationData = JSON.parse(text);
+            if (!locationResponse.ok) {
+                // 如果状态码是404，说明IP未找到，默认放行
+                if (locationResponse.status === 404) {
+                    console.warn('IP未找到，默认放行');
+                    return { ip, country: '', province: '', city: '', isMainland: true };
+                }
+                throw new Error('查询归属地失败');
+            }
+            
+            const data = await locationResponse.json();
+            
+            // 检查是否有错误码
+            if (data.code) {
+                console.warn('API返回错误:', data.message);
+                return { ip, country: '', province: '', city: '', isMainland: true };
+            }
             
             // 解析返回数据
-            if (locationData.ret === 200 && locationData.data) {
-                const data = locationData.data;
-                const country = data.country || '';
-                const province = data.prov || '';
-                const city = data.city || '';
-                
-                // 更新遮罩层信息
-                blockedIpDisplay.textContent = ip;
-                blockedLocationDisplay.textContent = country + ' ' + province + ' ' + city;
-                
-                // 判断是否为中国大陆（不含港澳台）
-                const isChina = country === '中国' || country === 'CN';
-                const isSpecialRegion = province.includes('香港') || province.includes('澳门') || province.includes('台湾') || 
-                                       city.includes('香港') || city.includes('澳门') || city.includes('台湾');
-                const isMainland = isChina && !isSpecialRegion;
-                
-                return { ip, country, province, city, isMainland, data };
-            } else {
-                throw new Error('接口返回异常');
+            const region = data.region || '';  // 格式：国家 省份 城市
+            const isp = data.isp || '';
+            
+            // 尝试解析 region 字段
+            let country = '';
+            let province = '';
+            let city = '';
+            
+            if (region) {
+                const parts = region.split(' ');
+                if (parts.length >= 1) country = parts[0] || '';
+                if (parts.length >= 2) province = parts[1] || '';
+                if (parts.length >= 3) city = parts[2] || '';
             }
+            
+            // 更新遮罩层信息
+            blockedIpDisplay.textContent = ip;
+            blockedLocationDisplay.textContent = region || '未知';
+            
+            // 判断是否为中国大陆（不含港澳台）
+            const isChina = country === '中国' || country === 'CN' || region.includes('中国');
+            const isSpecialRegion = province.includes('香港') || province.includes('澳门') || province.includes('台湾') || 
+                                   city.includes('香港') || city.includes('澳门') || city.includes('台湾') ||
+                                   region.includes('香港') || region.includes('澳门') || region.includes('台湾');
+            const isMainland = isChina && !isSpecialRegion;
+            
+            return { ip, country, province, city, isMainland, data, region };
             
         } catch (error) {
             console.warn('IP检测失败:', error);
@@ -429,7 +448,7 @@
 
             loginPanel.style.display = 'none';
             chatPanel.style.display = 'block';
-            userInfoDiv.textContent = `👤${currentUser.username} (${currentUser.ip})`;
+            userInfoDiv.textContent = `${currentUser.username} (${currentUser.ip})`;
 
             startHeartbeat();
             loadMessages();
