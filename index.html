@@ -877,7 +877,7 @@
                 .upsert({ user_id: currentUser.id, last_seen: new Date().toISOString() });
         };
         sendHeartbeat();
-        heartbeatInterval = setInterval(sendHeartbeat, 5000);
+        heartbeatInterval = setInterval(sendHeartbeat, 3000);
     }
 
     // ========== 保活功能 - 防止服务器/后端休眠 ==========
