@@ -9,547 +9,207 @@
     <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <!-- 使用官方 Supabase CDN -->
-    <script src="supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', 'Microsoft YaHei', sans-serif;
-        }
-        body {
-            background: linear-gradient(145deg, #f0f4fa 0%, #d9e2ef 100%);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 16px;
-        }
-        .app-container {
-            width: 100%;
-            max-width: 1400px;
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        .login-card {
-            background: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 48px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            padding: 40px 32px;
-            width: 100%;
-            max-width: 480px;
-            margin: 0 auto;
-            border: 1px solid rgba(255,255,255,0.5);
-            position: relative;
-        }
-        .login-card h2 {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #1e293b;
-            margin-bottom: 32px;
-            letter-spacing: -0.02em;
-        }
-        .ip-badge {
-            background: rgba(37, 99, 235, 0.1);
-            padding: 14px 20px;
-            border-radius: 60px;
-            font-size: 0.95rem;
-            color: #1e293b;
-            margin-bottom: 28px;
-            border: 1px solid rgba(37,99,235,0.2);
-            backdrop-filter: blur(4px);
-        }
-        .form-group {
-            margin-bottom: 28px;
-        }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #0f172a;
-            font-size: 0.95rem;
-            letter-spacing: 0.3px;
-        }
-        input[type="text"], input[type="password"] {
-            width: 100%;
-            padding: 16px 22px;
-            border: 2px solid rgba(203, 213, 225, 0.6);
-            border-radius: 60px;
-            font-size: 1rem;
-            background: rgba(255,255,255,0.8);
-            transition: all 0.2s;
-            outline: none;
-        }
-        input:focus {
-            border-color: #2563eb;
-            box-shadow: 0 0 0 4px rgba(37,99,235,0.15);
-            background: white;
-        }
-        .btn {
-            background: #2563eb;
-            color: white;
-            border: none;
-            padding: 16px 28px;
-            border-radius: 60px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            transition: all 0.2s;
-            box-shadow: 0 8px 20px -8px #2563eb;
-        }
-        .btn:hover {
-            background: #1d4ed8;
-            transform: translateY(-2px);
-            box-shadow: 0 12px 25px -8px #1d4ed8;
-        }
-        .btn:disabled {
-            background: #94a3b8;
-            box-shadow: none;
-            transform: none;
-            cursor: not-allowed;
-        }
-        .error {
-            color: #dc2626;
-            font-size: 0.9rem;
-            margin-top: 8px;
-            padding-left: 16px;
-            display: none;
-        }
-        .auto-login-badge {
-            position: absolute;
-            top: 20px;
-            right: 24px;
-            font-size: 0.7rem;
-            background: #22c55e20;
-            color: #16a34a;
-            padding: 4px 12px;
-            border-radius: 40px;
-            border: 1px solid #22c55e40;
-        }
-        .chat-main {
-            flex: 3;
-            min-width: 300px;
-            background: rgba(255, 255, 255, 0.75);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 48px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            border: 1px solid rgba(255,255,255,0.5);
-        }
-        .online-sidebar {
-            flex: 1;
-            min-width: 260px;
-            background: rgba(255, 255, 255, 0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 48px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-            padding: 24px 20px;
-            height: fit-content;
-            max-height: 600px;
-            overflow-y: auto;
-            border: 1px solid rgba(255,255,255,0.5);
-        }
-        @media (max-width: 768px) {
-            .app-container { flex-direction: column; }
-            .online-sidebar { width: 100%; max-height: 300px; }
-            .auto-login-badge { display: none; }
-        }
-        .chat-header {
-            padding: 24px 28px;
-            border-bottom: 1px solid rgba(203, 213, 225, 0.4);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 12px;
-        }
-        .user-badge {
-            background: rgba(37, 99, 235, 0.15);
-            color: #1e40af;
-            padding: 8px 20px;
-            border-radius: 40px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            backdrop-filter: blur(4px);
-        }
-        .reset-timer {
-            font-size: 0.9rem;
-            color: #475569;
-            background: rgba(255,255,255,0.5);
-            padding: 6px 16px;
-            border-radius: 40px;
-        }
-        .messages {
-            padding: 24px 28px;
-            height: 400px;
-            overflow-y: auto;
-            background: rgba(248, 250, 252, 0.6);
-            border-radius: 32px;
-            margin: 20px 28px;
-            border: 1px solid rgba(203, 213, 225, 0.4);
-        }
-        .message {
-            margin-bottom: 24px;
-            border-bottom: 1px dashed rgba(148, 163, 184, 0.3);
-            padding-bottom: 16px;
-            position: relative;
-            animation: fadeIn 0.3s ease;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Microsoft YaHei', sans-serif; }
+        body { background: linear-gradient(145deg, #f0f4fa 0%, #d9e2ef 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 16px; }
+        .app-container { width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 20px; }
+        .login-card { background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); border-radius: 48px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); padding: 40px 32px; width: 100%; max-width: 480px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.5); position: relative; }
+        .login-card h2 { font-size: 2rem; font-weight: 700; color: #1e293b; margin-bottom: 32px; }
+        .ip-badge { background: rgba(37,99,235,0.1); padding: 14px 20px; border-radius: 60px; font-size: 0.95rem; color: #1e293b; margin-bottom: 28px; border: 1px solid rgba(37,99,235,0.2); }
+        .form-group { margin-bottom: 28px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #0f172a; font-size: 0.95rem; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 16px 22px; border: 2px solid rgba(203,213,225,0.6); border-radius: 60px; font-size: 1rem; background: rgba(255,255,255,0.8); transition: all 0.2s; outline: none; }
+        input:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.15); background: white; }
+        .btn { background: #2563eb; color: white; border: none; padding: 16px 28px; border-radius: 60px; font-size: 1.1rem; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s; box-shadow: 0 8px 20px -8px #2563eb; }
+        .btn:hover { background: #1d4ed8; transform: translateY(-2px); }
+        .btn:disabled { background: #94a3b8; box-shadow: none; transform: none; cursor: not-allowed; }
+        .error { color: #dc2626; font-size: 0.9rem; margin-top: 8px; display: none; }
+        .auto-login-badge { position: absolute; top: 20px; right: 24px; font-size: 0.7rem; background: #22c55e20; color: #16a34a; padding: 4px 12px; border-radius: 40px; border: 1px solid #22c55e40; }
+        .chat-main { flex: 3; min-width: 300px; background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); border-radius: 48px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.5); }
+        .online-sidebar { flex: 1; min-width: 260px; background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); border-radius: 48px; padding: 24px 20px; height: fit-content; max-height: 600px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.5); }
+        @media (max-width: 768px) { .app-container { flex-direction: column; } .online-sidebar { width: 100%; max-height: 300px; } .auto-login-badge { display: none; } }
+        .chat-header { padding: 24px 28px; border-bottom: 1px solid rgba(203,213,225,0.4); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+        .user-badge { background: rgba(37,99,235,0.15); color: #1e40af; padding: 8px 20px; border-radius: 40px; font-size: 0.95rem; font-weight: 600; }
+        .reset-timer { font-size: 0.9rem; color: #475569; background: rgba(255,255,255,0.5); padding: 6px 16px; border-radius: 40px; }
+        .messages { padding: 24px 28px; height: 400px; overflow-y: auto; background: rgba(248,250,252,0.6); border-radius: 32px; margin: 20px 28px; border: 1px solid rgba(203,213,225,0.4); }
+        .message { margin-bottom: 24px; border-bottom: 1px dashed rgba(148,163,184,0.3); padding-bottom: 16px; position: relative; animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-        .message-header {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            color: #64748b;
-            margin-bottom: 8px;
-        }
-        .message-author {
-            font-weight: 700;
-            color: #2563eb;
-            background: rgba(37,99,235,0.05);
-            padding: 2px 12px;
-            border-radius: 40px;
-        }
-        .message-time {
-            color: #94a3b8;
-        }
-        .message-content {
-            word-break: break-word;
-            color: #0f172a;
-            padding-right: 40px;
-            line-height: 1.5;
-        }
-        .delete-btn {
-            position: absolute;
-            right: 0;
-            top: 4px;
-            background: rgba(239, 68, 68, 0.1);
-            border: none;
-            color: #ef4444;
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 4px 12px;
-            border-radius: 40px;
-            display: none;
-            backdrop-filter: blur(4px);
-            transition: all 0.2s;
-        }
-        .message:hover .delete-btn {
-            display: block;
-        }
-        .delete-btn:hover {
-            background: rgba(239, 68, 68, 0.2);
-            color: #b91c1c;
-        }
-        .input-area {
-            display: flex;
-            gap: 12px;
-            padding: 0 28px 24px 28px;
-        }
-        .input-area input {
-            flex: 1;
-            padding: 16px 24px;
-            border: 2px solid rgba(203, 213, 225, 0.6);
-            border-radius: 60px;
-            font-size: 1rem;
-            background: rgba(255,255,255,0.8);
-        }
-        .input-area button {
-            width: auto;
-            padding: 16px 36px;
-        }
-        .char-count {
-            padding: 0 28px 20px 28px;
-            font-size: 0.9rem;
-            color: #64748b;
-            text-align: right;
-        }
-        .online-title {
-            font-size: 1.3rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            color: #1e293b;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .online-list {
-            list-style: none;
-        }
-        .online-item {
-            display: flex;
-            align-items: center;
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(226, 232, 240, 0.6);
-        }
-        .status-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            margin-right: 14px;
-            transition: all 0.2s;
-        }
-        .online .status-dot {
-            background: #22c55e;
-            box-shadow: 0 0 0 3px #bbf7d0;
-        }
-        .offline .status-dot {
-            background: #94a3b8;
-        }
-        .username {
-            flex: 1;
-            font-weight: 600;
-            color: #334155;
-        }
-        .user-ip {
-            font-size: 0.8rem;
-            color: #94a3b8;
-            background: rgba(148,163,184,0.1);
-            padding: 2px 8px;
-            border-radius: 40px;
-        }
-        .warning {
-            background: rgba(254, 215, 170, 0.8);
-            backdrop-filter: blur(8px);
-            color: #9a3412;
-            padding: 14px 24px;
-            margin: 0 28px 20px 28px;
-            border-radius: 60px;
-            font-size: 0.95rem;
-            display: none;
-            border: 1px solid #fed7aa;
-        }
-        .footer-bar {
-            background: rgba(255, 255, 255, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border-radius: 60px;
-            padding: 16px 32px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-            border: 1px solid rgba(255,255,255,0.5);
-            margin-top: 10px;
-            user-select: none;
-        }
-        .school-info {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #0f172a;
-            text-align: center;
-            flex: 1;
-            letter-spacing: 0.5px;
-            background: linear-gradient(135deg, #1e293b, #334155);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .bulletin-btn {
-            background: rgba(37, 99, 235, 0.1);
-            border: 1px solid rgba(37,99,235,0.3);
-            color: #2563eb;
-            padding: 10px 24px;
-            border-radius: 40px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.95rem;
-            backdrop-filter: blur(4px);
-        }
-        .bulletin-btn:hover {
-            background: #2563eb;
-            color: white;
-            border-color: #2563eb;
-        }
-        .modal {
+        .message-header { display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b; margin-bottom: 8px; }
+        .message-author { font-weight: 700; color: #2563eb; background: rgba(37,99,235,0.05); padding: 2px 12px; border-radius: 40px; }
+        .message-time { color: #94a3b8; }
+        .message-content { word-break: break-word; color: #0f172a; padding-right: 40px; line-height: 1.5; }
+        .delete-btn { position: absolute; right: 0; top: 4px; background: rgba(239,68,68,0.1); border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; padding: 4px 12px; border-radius: 40px; display: none; }
+        .message:hover .delete-btn { display: block; }
+        .delete-btn:hover { background: rgba(239,68,68,0.2); color: #b91c1c; }
+        .input-area { display: flex; gap: 12px; padding: 0 28px 24px 28px; }
+        .input-area input { flex: 1; padding: 16px 24px; border: 2px solid rgba(203,213,225,0.6); border-radius: 60px; font-size: 1rem; background: rgba(255,255,255,0.8); }
+        .input-area button { width: auto; padding: 16px 36px; }
+        .char-count { padding: 0 28px 20px 28px; font-size: 0.9rem; color: #64748b; text-align: right; }
+        .online-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 20px; color: #1e293b; display: flex; justify-content: space-between; align-items: center; }
+        .online-list { list-style: none; }
+        .online-item { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(226,232,240,0.6); }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 14px; flex-shrink: 0; }
+        .online .status-dot { background: #22c55e; box-shadow: 0 0 0 3px #bbf7d0; }
+        .offline .status-dot { background: #94a3b8; }
+        .username { flex: 1; font-weight: 600; color: #334155; }
+        .user-ip { font-size: 0.8rem; color: #94a3b8; background: rgba(148,163,184,0.1); padding: 2px 8px; border-radius: 40px; }
+        .warning { background: rgba(254,215,170,0.8); color: #9a3412; padding: 14px 24px; margin: 0 28px 20px 28px; border-radius: 60px; font-size: 0.95rem; display: none; border: 1px solid #fed7aa; }
+        .footer-bar { background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-radius: 60px; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; border: 1px solid rgba(255,255,255,0.5); margin-top: 10px; }
+        .school-info { font-size: 1.1rem; font-weight: 600; color: #0f172a; text-align: center; flex: 1; background: linear-gradient(135deg, #1e293b, #334155); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .bulletin-btn { background: rgba(37,99,235,0.1); border: 1px solid rgba(37,99,235,0.3); color: #2563eb; padding: 10px 24px; border-radius: 40px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.95rem; }
+        .bulletin-btn:hover { background: #2563eb; color: white; border-color: #2563eb; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); backdrop-filter: blur(6px); align-items: center; justify-content: center; z-index: 1000; }
+        .modal.active { display: flex; }
+        .modal-content { background: rgba(255,255,255,0.95); backdrop-filter: blur(16px); border-radius: 48px; padding: 32px 40px; max-width: 500px; width: 90%; box-shadow: 0 30px 60px rgba(0,0,0,0.3); border: 1px solid white; }
+        .modal-content h3 { font-size: 1.8rem; color: #1e293b; margin-bottom: 20px; }
+        .modal-content p { font-size: 1.2rem; line-height: 1.6; color: #334155; white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow-y: auto; }
+        .close-modal { margin-top: 24px; text-align: right; }
+        .close-modal button { background: #2563eb; color: white; border: none; padding: 12px 28px; border-radius: 40px; font-weight: 600; cursor: pointer; }
+        .live-indicator { display: inline-block; width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 1.5s infinite; margin-right: 6px; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .admin-link { color: #64748b; text-decoration: none; font-size: 0.9rem; padding: 8px 16px; border-radius: 40px; background: rgba(255,255,255,0.5); transition: all 0.2s; }
+        .admin-link:hover { background: white; color: #2563eb; }
+        .remember-me { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; }
+        .remember-me input[type="checkbox"] { width: 18px; height: 18px; accent-color: #2563eb; cursor: pointer; }
+        .remember-me label { font-size: 0.9rem; color: #475569; cursor: pointer; margin: 0; }
+
+        /* IP限制遮罩层 - 简化版 */
+        .ip-block-overlay {
             display: none;
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.3);
-            backdrop-filter: blur(6px);
-            align-items: center;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            z-index: 9999;
             justify-content: center;
-            z-index: 1000;
-        }
-        .modal.active {
-            display: flex;
-        }
-        .modal-content {
-            background: rgba(255,255,255,0.95);
-            backdrop-filter: blur(16px);
-            border-radius: 48px;
-            padding: 32px 40px;
-            max-width: 500px;
-            width: 90%;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.3);
-            border: 1px solid white;
-        }
-        .modal-content h3 {
-            font-size: 1.8rem;
-            color: #1e293b;
-            margin-bottom: 20px;
-        }
-        .modal-content p {
-            font-size: 1.2rem;
-            line-height: 1.6;
-            color: #334155;
-            white-space: pre-wrap;
-            word-break: break-word;
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-        .close-modal {
-            margin-top: 24px;
-            text-align: right;
-        }
-        .close-modal button {
-            background: #2563eb;
-            color: white;
-            border: none;
-            padding: 12px 28px;
-            border-radius: 40px;
-            font-weight: 600;
-            cursor: pointer;
-        }
-        .live-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #22c55e;
-            border-radius: 50%;
-            animation: pulse 1.5s infinite;
-            margin-right: 6px;
-        }
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-        .admin-link {
-            color: #64748b;
-            text-decoration: none;
-            font-size: 0.9rem;
-            padding: 8px 16px;
-            border-radius: 40px;
-            background: rgba(255,255,255,0.5);
-            transition: all 0.2s;
-        }
-        .admin-link:hover {
-            background: white;
-            color: #2563eb;
-        }
-        /* 记住我复选框 */
-        .remember-me {
-            display: flex;
             align-items: center;
-            gap: 10px;
-            margin: 12px 0 8px;
+            flex-direction: column;
+            padding: 40px 20px;
         }
-        .remember-me input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: #2563eb;
-            cursor: pointer;
+        .ip-block-overlay.active { display: flex; }
+        .ip-block-box {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 48px;
+            padding: 50px 40px;
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
         }
-        .remember-me label {
-            font-size: 0.9rem;
-            color: #475569;
-            cursor: pointer;
-            margin: 0;
+        .ip-block-box .lock-icon { font-size: 4rem; margin-bottom: 16px; }
+        .ip-block-box h2 { font-size: 1.8rem; color: #dc2626; margin-bottom: 12px; }
+        .ip-block-box p { font-size: 1.05rem; color: #475569; line-height: 1.8; }
+        .ip-block-box .ip-info { background: #f1f5f9; border-radius: 16px; padding: 16px 20px; margin: 20px 0; font-family: monospace; font-size: 0.95rem; color: #1e293b; word-break: break-all; }
+        .ip-block-box .ip-info span { color: #2563eb; font-weight: 600; }
+        .ip-block-box .btn-close-block { background: #2563eb; color: white; border: none; padding: 14px 40px; border-radius: 60px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
+        .ip-block-box .btn-close-block:hover { background: #1d4ed8; transform: translateY(-2px); }
+        .ip-block-box .support-text { font-size: 0.85rem; color: #94a3b8; margin-top: 16px; }
+        @media (max-width: 600px) {
+            .ip-block-box { padding: 32px 24px; }
+            .ip-block-box h2 { font-size: 1.4rem; }
         }
     </style>
 </head>
 <body>
-    <div class="app-container" id="app">
-        <!-- 登录卡片 -->
-        <div id="loginPanel" class="login-card">
-            <span class="auto-login-badge" id="autoLoginBadge" style="display:none;">自动登录</span>
-            <h2>隆职聊天室</h2>
-            <div class="ip-badge" id="ipDisplay">IP检测中...</div>
-            <div class="form-group">
-                <label>中文名 (1-6汉字)</label>
-                <input type="text" id="username" placeholder="例如：李华" maxlength="6">
+
+<!-- IP限制遮罩层 -->
+<div class="ip-block-overlay" id="ipBlockOverlay">
+    <div class="ip-block-box">
+        <div class="lock-icon">🚫</div>
+        <h2>访问受限</h2>
+        <p>抱歉，该聊天室仅限<strong>中国大陆地区</strong>用户访问。</p>
+        <p style="font-size:0.9rem;color:#64748b;">根据服务条款，港澳台及海外IP暂不支持访问。</p>
+        <div class="ip-info">
+            检测到您的IP：<span id="blockedIpDisplay">加载中...</span><br>
+            归属地：<span id="blockedLocationDisplay">加载中...</span>
+        </div>
+        <button class="btn-close-block" onclick="location.reload()">重新检测</button>
+        <p class="support-text">如果您认为这是误判，请联系管理员。</p>
+    </div>
+</div>
+
+<div class="app-container" id="app">
+    <!-- 登录卡片 -->
+    <div id="loginPanel" class="login-card">
+        <span class="auto-login-badge" id="autoLoginBadge" style="display:none;">自动登录</span>
+        <h2>隆职聊天室</h2>
+        <div class="ip-badge" id="ipDisplay">IP检测中...</div>
+        <div class="form-group">
+            <label>中文名 (1-6汉字)</label>
+            <input type="text" id="username" placeholder="例如：李华" maxlength="6">
+        </div>
+        <div class="form-group">
+            <label>密码 (8-12位，包含数字、字母、特殊字符)</label>
+            <input type="password" id="password" placeholder="********" maxlength="12">
+        </div>
+        <div class="remember-me">
+            <input type="checkbox" id="rememberMe" checked>
+            <label for="rememberMe">记住我（自动登录）</label>
+        </div>
+        <div id="loginError" class="error"></div>
+        <button class="btn" id="enterBtn" disabled>进入聊天室</button>
+        <div style="margin-top: 20px; text-align: center; color: #475569; font-size:0.9rem;">已有账号直接登录，新账号自动注册</div>
+    </div>
+
+    <!-- 聊天主面板 -->
+    <div id="chatPanel" style="display: none; width: 100%;">
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; width: 100%;">
+            <div class="chat-main">
+                <div class="chat-header">
+                    <span class="user-badge" id="userInfo">加载中...</span>
+                    <span class="reset-timer" id="timeReminder"></span>
+                </div>
+                <div id="warningMessage" class="warning"></div>
+                <div class="messages" id="messageList"></div>
+                <div class="input-area">
+                    <input type="text" id="messageInput" placeholder="说点什么... (最多200字)" maxlength="200">
+                    <button class="btn" id="sendBtn">发送</button>
+                </div>
+                <div class="char-count" id="charCount">0/200</div>
             </div>
-            <div class="form-group">
-                <label>密码 (8-12位，包含数字、字母、特殊字符)</label>
-                <input type="password" id="password" placeholder="********" maxlength="12">
-            </div>
-            <div class="remember-me">
-                <input type="checkbox" id="rememberMe" checked>
-                <label for="rememberMe">记住我（自动登录）</label>
-            </div>
-            <div id="loginError" class="error"></div>
-            <button class="btn" id="enterBtn" disabled>进入聊天室</button>
-            <div style="margin-top: 20px; text-align: center; color: #475569; font-size:0.9rem;">已有账号直接登录，新账号自动注册</div>
-            <div style="margin-top: 12px; text-align: center;">
+            <div class="online-sidebar">
+                <div class="online-title">
+                    <span>👥在线列表</span>
+                    <span style="font-size: 0.9rem; background: rgba(255,255,255,0.5); padding: 4px 12px; border-radius:40px;" id="onlineCount">0 在线</span>
+                </div>
+                <ul class="online-list" id="onlineList">
+                    <li style="color: #94a3b8; text-align: center; padding: 20px;">加载中...</li>
+                </ul>
             </div>
         </div>
-
-        <!-- 聊天主面板 -->
-        <div id="chatPanel" style="display: none; width: 100%;">
-            <div style="display: flex; flex-wrap: wrap; gap: 20px; width: 100%;">
-                <div class="chat-main">
-                    <div class="chat-header">
-                        <span class="user-badge" id="userInfo">加载中...</span>
-                        <span class="reset-timer" id="timeReminder"></span>
-                    </div>
-                    <div id="warningMessage" class="warning"></div>
-                    <div class="messages" id="messageList"></div>
-                    <div class="input-area">
-                        <input type="text" id="messageInput" placeholder="说点什么... (最多200字)" maxlength="200">
-                        <button class="btn" id="sendBtn">发送</button>
-                    </div>
-                    <div class="char-count" id="charCount">0/200</div>
-                </div>
-                <div class="online-sidebar">
-                    <div class="online-title">
-                        <span> 在线列表</span>
-                        <span style="font-size: 0.9rem; background: rgba(255,255,255,0.5); padding: 4px 12px; border-radius:40px;" id="onlineCount">0 在线</span>
-                    </div>
-                    <ul class="online-list" id="onlineList">
-                        <li style="color: #94a3b8; text-align: center; padding: 20px;">加载中...</li>
-                    </ul>
-                </div>
-            </div>
-            <div class="footer-bar">
-                <span></span>
-                <span class="school-info" unselectable="on">
-                    <span class="live-indicator"></span>聊天室
-                </span>
-                <div style="display: flex; gap: 12px;">
-                    <span class="bulletin-btn" id="viewBulletinBtn">查看公告</span>
-                </div>
+        <div class="footer-bar">
+            <span></span>
+            <span class="school-info" unselectable="on">
+                <span class="live-indicator"></span>聊天室
+            </span>
+            <div style="display: flex; gap: 12px;">
+                <span class="bulletin-btn" id="viewBulletinBtn">查看公告</span>
             </div>
         </div>
     </div>
+</div>
 
-    <!-- 公告弹窗 -->
-    <div class="modal" id="bulletinModal">
-        <div class="modal-content">
-            <h3>聊天室公告</h3>
-            <p id="bulletinContent">加载中...</p>
-            <div class="close-modal">
-                <button id="closeModalBtn">关闭</button>
-            </div>
+<!-- 公告弹窗 -->
+<div class="modal" id="bulletinModal">
+    <div class="modal-content">
+        <h3>聊天室公告</h3>
+        <p id="bulletinContent">加载中...</p>
+        <div class="close-modal">
+            <button id="closeModalBtn">关闭</button>
         </div>
     </div>
+</div>
 
-    <script>
+<script>
 (function() {
     // ========== 配置 ==========
     const SUPABASE_URL = 'https://vleraaavbfokdxjaaheg.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsZXJhYWF2YmZva2R4amFhaGVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NTcyNjAsImV4cCI6MjA5OTQzMzI2MH0.sjnWeEucxZrZqVluk5r0lXQdRA_Xs3Rt6XBsdyJuWXM';
     
-    // ========== 初始化 Supabase ==========
     const { createClient } = supabase;
     const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const bcrypt = dcodeIO.bcrypt;
@@ -559,13 +219,13 @@
     let messagesSubscription = null;
     let heartbeatsSubscription = null;
     let bulletinSubscription = null;
-    let dailyResetTimer = null;
     let heartbeatInterval = null;
     let pingInterval = null;
-    let keepAliveInterval = null;  // 新增：保持连接活跃的定时器
+    let keepAliveInterval = null;
     let onlineUsers = [];
     let deviceFingerprint = null;
     let isAutoLoggingIn = false;
+    let detectedIP = '检测中...';
 
     // DOM 元素
     const loginPanel = document.getElementById('loginPanel');
@@ -591,6 +251,85 @@
     const rememberMeCheckbox = document.getElementById('rememberMe');
     const autoLoginBadge = document.getElementById('autoLoginBadge');
 
+    const ipBlockOverlay = document.getElementById('ipBlockOverlay');
+    const blockedIpDisplay = document.getElementById('blockedIpDisplay');
+    const blockedLocationDisplay = document.getElementById('blockedLocationDisplay');
+
+    // ========== 获取IP并检测归属地（使用 ip9.com.cn） ==========
+    async function getIPAndLocation() {
+        try {
+            // 1. 先获取公网IP
+            const ipResponse = await fetch('https://api.ip.sb/jsonip', { 
+                mode: 'cors',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!ipResponse.ok) throw new Error('获取IP失败');
+            const ipData = await ipResponse.json();
+            const ip = ipData.ip || '0.0.0.0';
+            detectedIP = ip;
+            ipSpan.innerHTML = `你的IP：<span style="color:#2563eb;">${ip}</span>`;
+
+            // 2. 用获取到的IP查询归属地
+            const locationResponse = await fetch(`https://ip9.com.cn/get?ip=${ip}`, {
+                mode: 'cors',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (!locationResponse.ok) throw new Error('查询归属地失败');
+            const locationData = await locationResponse.json();
+            
+            // 解析返回数据
+            if (locationData.ret === 200 && locationData.data) {
+                const data = locationData.data;
+                const country = data.country || '';
+                const province = data.prov || '';
+                const city = data.city || '';
+                
+                // 更新遮罩层信息
+                blockedIpDisplay.textContent = ip;
+                blockedLocationDisplay.textContent = country + ' ' + province + ' ' + city;
+                
+                // 判断是否为中国大陆（不含港澳台）
+                const isChina = country === '中国' || country === 'CN';
+                const isSpecialRegion = province.includes('香港') || province.includes('澳门') || province.includes('台湾') || 
+                                       city.includes('香港') || city.includes('澳门') || city.includes('台湾');
+                const isMainland = isChina && !isSpecialRegion;
+                
+                return { ip, country, province, city, isMainland, data };
+            } else {
+                throw new Error('接口返回异常');
+            }
+            
+        } catch (error) {
+            console.warn('IP检测失败:', error);
+            // 失败时默认放行（不影响国内用户）
+            blockedIpDisplay.textContent = '查询失败';
+            blockedLocationDisplay.textContent = '请刷新重试';
+            return { ip: '0.0.0.0', country: '', province: '', city: '', isMainland: true };
+        }
+    }
+
+    // ========== 主流程 ==========
+    async function initApp() {
+        // 1. 检测IP及归属地
+        const result = await getIPAndLocation();
+        
+        if (!result.isMainland) {
+            // 非中国大陆IP，显示遮罩层
+            ipBlockOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            return;
+        }
+        
+        // 2. IP允许访问，继续后续流程
+        checkAutoLogin();
+    }
+
+    // ========== 密码验证 ==========
+    function validatePassword(pwd) {
+        if (pwd.length < 8 || pwd.length > 12) return false;
+        return /\d/.test(pwd) && /[a-zA-Z]/.test(pwd) && /[^a-zA-Z0-9]/.test(pwd);
+    }
+
     // ========== 存储登录信息 ==========
     function saveLoginData(username, password, remember) {
         if (remember) {
@@ -598,9 +337,7 @@
                 localStorage.setItem('chat_username', username);
                 localStorage.setItem('chat_password', password);
                 localStorage.setItem('chat_remember', 'true');
-            } catch (e) {
-                console.warn('保存登录信息失败', e);
-            }
+            } catch (e) {}
         } else {
             clearLoginData();
         }
@@ -611,72 +348,33 @@
             localStorage.removeItem('chat_username');
             localStorage.removeItem('chat_password');
             localStorage.removeItem('chat_remember');
-        } catch (e) {
-            console.warn('清除登录信息失败', e);
-        }
+        } catch (e) {}
     }
 
     function getSavedLoginData() {
         try {
-            const username = localStorage.getItem('chat_username') || '';
-            const password = localStorage.getItem('chat_password') || '';
-            const remember = localStorage.getItem('chat_remember') === 'true';
-            return { username, password, remember };
+            return {
+                username: localStorage.getItem('chat_username') || '',
+                password: localStorage.getItem('chat_password') || '',
+                remember: localStorage.getItem('chat_remember') === 'true'
+            };
         } catch (e) {
             return { username: '', password: '', remember: false };
         }
     }
 
-    // ========== 生成设备指纹 ==========
+    // ========== 设备指纹 ==========
     async function getDeviceFingerprint() {
         try {
             const fp = await FingerprintJS.load();
             const result = await fp.get();
             return result.visitorId;
         } catch (e) {
-            console.warn('指纹生成失败，使用备用ID', e);
             return 'fallback-' + crypto.randomUUID();
         }
     }
 
-    // ========== IP 检测 ==========
-    async function detectIP() {
-        try {
-            const response = await fetch('https://api.ip.sb/jsonip', { 
-                mode: 'cors',
-                headers: { 'Accept': 'application/json' }
-            });
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            const data = await response.json();
-            if (data && data.ip) return data.ip;
-            throw new Error('无效响应格式');
-        } catch (e) {
-            console.warn('ip.sb 检测失败', e);
-            return '0.0.0.0';
-        }
-    }
-
-    let detectedIP = '检测中...';
-    detectIP().then(ip => {
-        detectedIP = ip;
-        ipSpan.innerHTML = `你的IP：<span style="color:#2563eb;">${ip}</span>`;
-        checkAutoLogin();
-    }).catch(() => {
-        detectedIP = '0.0.0.0';
-        ipSpan.innerHTML = '无法检测IP，将使用 0.0.0.0';
-        checkAutoLogin();
-    });
-
-    // ========== 密码复杂度验证 ==========
-    function validatePassword(pwd) {
-        if (pwd.length < 8 || pwd.length > 12) return false;
-        const hasDigit = /\d/.test(pwd);
-        const hasLetter = /[a-zA-Z]/.test(pwd);
-        const hasSpecial = /[^a-zA-Z0-9]/.test(pwd);
-        return hasDigit && hasLetter && hasSpecial;
-    }
-
-    // ========== 执行登录（可被自动登录调用） ==========
+    // ========== 执行登录 ==========
     async function performLogin(username, password, isAuto = false) {
         if (isAuto) {
             isAutoLoggingIn = true;
@@ -690,14 +388,7 @@
                 deviceFingerprint = await getDeviceFingerprint();
             }
 
-            if (detectedIP === '检测中...') {
-                let waitCount = 0;
-                while (detectedIP === '检测中...' && waitCount < 10) {
-                    await new Promise(r => setTimeout(r, 100));
-                    waitCount++;
-                }
-            }
-            const currentIP = (detectedIP === '检测中...' || detectedIP === '未知') ? '0.0.0.0' : detectedIP;
+            const currentIP = detectedIP === '检测中...' ? '0.0.0.0' : detectedIP;
 
             const { data: existingUser, error: userErr } = await _supabase
                 .from('users')
@@ -713,21 +404,12 @@
 
                 const { error: updateErr } = await _supabase
                     .from('users')
-                    .update({ 
-                        last_login: new Date().toISOString(), 
-                        ip: currentIP,
-                        fingerprint: deviceFingerprint
-                    })
+                    .update({ last_login: new Date().toISOString(), ip: currentIP, fingerprint: deviceFingerprint })
                     .eq('id', existingUser.id);
 
                 if (updateErr) {
-                    if (updateErr.message.includes('Device fingerprint is banned')) {
-                        throw new Error('该设备已被封禁，无法登录');
-                    } else if (updateErr.message.includes('IP is banned')) {
-                        throw new Error('该IP已被封禁');
-                    } else {
-                        throw updateErr;
-                    }
+                    if (updateErr.message.includes('banned')) throw new Error('该设备或IP已被封禁');
+                    throw updateErr;
                 }
                 currentUser = { ...existingUser, ip: currentIP, fingerprint: deviceFingerprint };
             } else {
@@ -736,35 +418,22 @@
 
                 const { data: newUser, error: insertErr } = await _supabase
                     .from('users')
-                    .insert({ 
-                        username, 
-                        password_hash: hash, 
-                        ip: currentIP,
-                        fingerprint: deviceFingerprint 
-                    })
+                    .insert({ username, password_hash: hash, ip: currentIP, fingerprint: deviceFingerprint })
                     .select()
                     .single();
 
                 if (insertErr) {
-                    if (insertErr.message.includes('Device fingerprint is banned')) {
-                        throw new Error('该设备已被封禁，无法注册');
-                    } else if (insertErr.message.includes('IP is banned')) {
-                        throw new Error('该IP已被封禁');
-                    } else if (insertErr.message.includes('duplicate key')) {
-                        throw new Error('用户名已存在，请直接登录');
-                    } else {
-                        throw insertErr;
-                    }
+                    if (insertErr.message.includes('banned')) throw new Error('该设备或IP已被封禁');
+                    if (insertErr.message.includes('duplicate key')) throw new Error('用户名已存在，请直接登录');
+                    throw insertErr;
                 }
                 currentUser = newUser;
             }
 
-            // 登录成功
             loginPanel.style.display = 'none';
             chatPanel.style.display = 'block';
             userInfoDiv.textContent = `👤 ${currentUser.username} (${currentUser.ip})`;
 
-            // 启动各项功能
             startHeartbeat();
             loadMessages();
             loadOnlineUsers();
@@ -772,13 +441,11 @@
             subscribeHeartbeats();
             subscribeBulletin();
             startPing();
-            startKeepAlive();  // 启动保活
+            startKeepAlive();
 
             if (isAuto) {
                 autoLoginBadge.textContent = '自动登录成功';
-                setTimeout(() => {
-                    autoLoginBadge.style.display = 'none';
-                }, 3000);
+                setTimeout(() => { autoLoginBadge.style.display = 'none'; }, 3000);
             }
 
         } catch (err) {
@@ -790,7 +457,6 @@
                 enterBtn.textContent = '进入聊天室';
                 enterBtn.disabled = false;
                 isAutoLoggingIn = false;
-                // 自动登录失败，清除保存的密码
                 clearLoginData();
             }
             throw err;
@@ -812,11 +478,9 @@
             rememberMeCheckbox.checked = true;
             autoLoginBadge.style.display = 'inline-block';
             autoLoginBadge.textContent = '自动登录中...';
-            
             try {
                 await performLogin(saved.username, saved.password, true);
             } catch (e) {
-                // 自动登录失败，显示登录界面
                 loginError.textContent = '自动登录失败，请手动登录';
                 loginError.style.display = 'block';
                 enterBtn.disabled = false;
@@ -824,7 +488,6 @@
             }
         } else {
             enterBtn.disabled = false;
-            // 如果有保存的用户名，填充但需要手动输入密码
             if (saved.username) {
                 usernameInput.value = saved.username;
                 rememberMeCheckbox.checked = saved.remember;
@@ -832,9 +495,8 @@
         }
     }
 
-    // ========== 登录按钮点击事件 ==========
+    // ========== 登录按钮 ==========
     enterBtn.addEventListener('click', async () => {
-        // 如果正在自动登录，阻止重复点击
         if (isAutoLoggingIn) return;
 
         const username = usernameInput.value.trim();
@@ -857,12 +519,10 @@
         loginError.style.display = 'block';
 
         try {
-            // 保存登录信息（如果勾选了记住我）
             saveLoginData(username, password, rememberMeCheckbox.checked);
             await performLogin(username, password, false);
-        } catch (err) {
-            // 错误已在 performLogin 中显示
-        } finally {
+        } catch (err) {}
+        finally {
             enterBtn.disabled = false;
         }
     });
@@ -872,89 +532,64 @@
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         const sendHeartbeat = async () => {
             if (!currentUser) return;
-            await _supabase
-                .from('heartbeats')
-                .upsert({ user_id: currentUser.id, last_seen: new Date().toISOString() });
+            await _supabase.from('heartbeats').upsert({ user_id: currentUser.id, last_seen: new Date().toISOString() });
         };
         sendHeartbeat();
         heartbeatInterval = setInterval(sendHeartbeat, 3000);
     }
 
-    // ========== 保活功能 - 防止服务器/后端休眠 ==========
+    // ========== 保活 ==========
     function startKeepAlive() {
         if (keepAliveInterval) clearInterval(keepAliveInterval);
-        
         const keepAlive = async () => {
             try {
-                // 发送一个轻量级请求保持连接活跃
                 await _supabase.from('users').select('count', { count: 'exact', head: true });
-                console.log('💓 Keep-alive ping sent at', new Date().toLocaleTimeString());
-            } catch (e) {
-                console.warn('Keep-alive ping failed:', e.message);
-            }
+            } catch (e) {}
         };
-        
-        // 立即执行一次
         keepAlive();
-        // 每 4 分钟执行一次（防止 Supabase 或后端休眠）
         keepAliveInterval = setInterval(keepAlive, 4 * 60 * 1000);
     }
 
     // ========== 在线列表 ==========
     async function loadOnlineUsers() {
-        const { data, error } = await _supabase
-            .from('user_online_status')
-            .select('*');
-        if (error) { console.error(error); return; }
+        const { data, error } = await _supabase.from('user_online_status').select('*');
+        if (error) return;
         onlineUsers = data || [];
         renderOnlineList();
     }
 
     function subscribeHeartbeats() {
         if (heartbeatsSubscription) heartbeatsSubscription.unsubscribe();
-        heartbeatsSubscription = _supabase
-            .channel('heartbeats-changes')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'heartbeats' }, () => {
-                loadOnlineUsers();
-            })
+        heartbeatsSubscription = _supabase            .channel('heartbeats-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'heartbeats' }, () => loadOnlineUsers())
             .subscribe();
     }
 
     function renderOnlineList() {
         if (!onlineUsers.length) {
-            onlineList.innerHTML = '<li style="color:#94a3b8; text-align:center;">暂无用户</li>';
+            onlineList.innerHTML = '<li style="color:#94a3b8; text-align:center;padding:20px;">暂无用户</li>';
             onlineCountSpan.textContent = '0 在线';
             return;
         }
         const sorted = [...onlineUsers].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
         const onlineCount = sorted.filter(u => u.online).length;
         onlineCountSpan.textContent = `${onlineCount} 在线`;
-
-        const html = sorted.map(u => `
+        onlineList.innerHTML = sorted.map(u => `
             <li class="online-item ${u.online ? 'online' : 'offline'}">
                 <span class="status-dot"></span>
                 <span class="username">${escapeHtml(u.username)}</span>
                 <span class="user-ip">${u.ip}</span>
             </li>
         `).join('');
-        onlineList.innerHTML = html;
     }
 
     // ========== 消息功能 ==========
     async function loadMessages() {
         const { data, error } = await _supabase
             .from('messages')
-            .select(`
-                id,
-                content,
-                created_at,
-                user:users ( id, username )
-            `)
+            .select(`id, content, created_at, user:users ( id, username )`)
             .order('created_at', { ascending: true });
-        if (error) { 
-            console.error('加载消息失败:', error); 
-            return; 
-        }
+        if (error) return;
         renderMessages(data || []);
     }
 
@@ -982,41 +617,20 @@
     }
 
     window.deleteMessageById = async function(messageId) {
-        if (!currentUser) {
-            showWarning('请先登录');
-            return;
-        }
+        if (!currentUser) { showWarning('请先登录'); return; }
         try {
-            const { error } = await _supabase
-                .from('messages')
-                .delete()
-                .eq('id', messageId)
-                .eq('user_id', currentUser.id);
-            
-            if (error) {
-                showWarning('删除失败：' + error.message);
-            } else {
-                await loadMessages();
-                showWarning('消息已删除');
-            }
-        } catch (err) {
-            console.error('删除异常:', err);
-            showWarning('删除异常');
-        }
+            const { error } = await _supabase.from('messages').delete().eq('id', messageId).eq('user_id', currentUser.id);
+            if (error) { showWarning('删除失败：' + error.message); } 
+            else { await loadMessages(); showWarning('消息已删除'); }
+        } catch (err) { showWarning('删除异常'); }
     };
-
-    window.deleteMessage = window.deleteMessageById;
 
     function subscribeMessages() {
         if (messagesSubscription) messagesSubscription.unsubscribe();
         messagesSubscription = _supabase
             .channel('messages-changes')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
-                loadMessages();
-            })
-            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => {
-                loadMessages();
-            })
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => loadMessages())
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, () => loadMessages())
             .subscribe();
     }
 
@@ -1025,26 +639,14 @@
         charCount.textContent = `${messageInput.value.length}/200`;
     });
     messageInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            sendMessage();
-        }
+        if (e.key === 'Enter') { e.preventDefault(); sendMessage(); }
     });
 
     async function sendMessage() {
-        if (!currentUser) {
-            showWarning('请先登录');
-            return;
-        }
+        if (!currentUser) { showWarning('请先登录'); return; }
         const content = messageInput.value.trim();
-        if (!content) {
-            showWarning('请输入消息内容');
-            return;
-        }
-        if (content.length > 200) {
-            showWarning('消息不能超过200字');
-            return;
-        }
+        if (!content) { showWarning('请输入消息内容'); return; }
+        if (content.length > 200) { showWarning('消息不能超过200字'); return; }
         
         sendBtn.disabled = true;
         const original = content;
@@ -1052,17 +654,9 @@
         charCount.textContent = '0/200';
 
         try {
-            const { data, error } = await _supabase
-                .from('messages')
-                .insert({ user_id: currentUser.id, content: original })
-                .select();
-            
+            const { error } = await _supabase.from('messages').insert({ user_id: currentUser.id, content: original });
             if (error) {
-                if (error.message.includes('IP is banned') || error.message.includes('fingerprint is banned')) {
-                    showWarning('您的设备或IP已被封禁，消息未发送');
-                } else {
-                    showWarning('发送失败：' + error.message);
-                }
+                showWarning('发送失败：' + error.message);
                 messageInput.value = original;
                 charCount.textContent = `${original.length}/200`;
             } else {
@@ -1070,7 +664,6 @@
                 messageList.scrollTop = messageList.scrollHeight;
             }
         } catch (err) {
-            console.error('发送异常:', err);
             showWarning('发送异常');
             messageInput.value = original;
             charCount.textContent = `${original.length}/200`;
@@ -1086,15 +679,10 @@
         setTimeout(() => { warningDiv.style.display = 'none'; }, 3000);
     }
 
-    // ========== 公告功能 ==========
+    // ========== 公告 ==========
     async function loadBulletin() {
-        const { data, error } = await _supabase
-            .from('bulletin')
-            .select('content')
-            .eq('id', 1)
-            .single();
-        if (error) console.error(error);
-        else bulletinContent.textContent = data.content;
+        const { data, error } = await _supabase.from('bulletin').select('content').eq('id', 1).single();
+        if (!error) bulletinContent.textContent = data.content;
     }
 
     function subscribeBulletin() {
@@ -1137,18 +725,20 @@
         });
     }
 
-    // ========== 清理资源 ==========
+    // ========== 清理 ==========
     window.addEventListener('beforeunload', () => {
         if (messagesSubscription) messagesSubscription.unsubscribe();
         if (heartbeatsSubscription) heartbeatsSubscription.unsubscribe();
         if (bulletinSubscription) bulletinSubscription.unsubscribe();
         if (heartbeatInterval) clearInterval(heartbeatInterval);
-        if (dailyResetTimer) clearInterval(dailyResetTimer);
         if (pingInterval) clearInterval(pingInterval);
         if (keepAliveInterval) clearInterval(keepAliveInterval);
     });
-})();
 
-     </script>    
+    // ========== 启动 ==========
+    initApp();
+
+})();
+</script>    
 </body>
 </html>
