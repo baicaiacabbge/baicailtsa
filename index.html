@@ -116,31 +116,31 @@
 <!-- IP限制遮罩层 -->
 <div class="ip-block-overlay" id="ipBlockOverlay">
     <div class="ip-block-box">
-        <div class="lock-icon">🚫</div>
-        <h2>访问受限</h2>
+        <div class="lock-icon">❌️</div>
+        <h2>你的访问被拒绝</h2>
         <p>抱歉，该聊天室仅限<strong>中国大陆地区</strong>用户访问。</p>
-        <p style="font-size:0.9rem;color:#64748b;">根据服务条款，港澳台及海外IP暂不支持访问。</p>
+        <p style="font-size:0.9rem;color:#64748b;">非中国大陆地区(不含港澳台)无法访问</p>
         <div class="ip-info">
-            检测到您的IP：<span id="blockedIpDisplay">加载中...</span><br>
+            IP：<span id="blockedIpDisplay">加载中...</span><br>
             归属地：<span id="blockedLocationDisplay">加载中...</span>
         </div>
         <button class="btn-close-block" onclick="location.reload()">重新检测</button>
-        <p class="support-text">如果您认为这是误判，请联系管理员。</p>
+        <p class="support-text">如有异议，请联系管理员</p>
     </div>
 </div>
 
 <div class="app-container" id="app">
     <div id="loginPanel" class="login-card">
         <span class="auto-login-badge" id="autoLoginBadge" style="display:none;">自动登录</span>
-        <h2>隆职聊天室</h2>
-        <div class="ip-badge" id="ipDisplay">IP检测中...</div>
+        <h2>白菜聊天室</h2>
+        <div class="ip-badge" id="ipDisplay">IP获取中...</div>
         <div class="form-group">
             <label>中文名 (1-6汉字)</label>
-            <input type="text" id="username" placeholder="例如：李华" maxlength="6">
+            <input type="text" id="username" placeholder="用户名" maxlength="6">
         </div>
         <div class="form-group">
             <label>密码 (8-12位，包含数字、字母、特殊字符)</label>
-            <input type="password" id="password" placeholder="********" maxlength="12">
+            <input type="password" id="password" placeholder="密码" maxlength="12">
         </div>
         <div class="remember-me">
             <input type="checkbox" id="rememberMe" checked>
@@ -161,7 +161,7 @@
                 <div id="warningMessage" class="warning"></div>
                 <div class="messages" id="messageList"></div>
                 <div class="input-area">
-                    <input type="text" id="messageInput" placeholder="说点什么... (最多200字)" maxlength="200">
+                    <input type="text" id="messageInput" placeholder="请输入你要发送的内容" maxlength="200">
                     <button class="btn" id="sendBtn">发送</button>
                 </div>
                 <div class="char-count" id="charCount">0/200</div>
@@ -179,7 +179,7 @@
         <div class="footer-bar">
             <span></span>
             <span class="school-info" unselectable="on">
-                <span class="live-indicator"></span>聊天室
+                聊天室
             </span>
             <div style="display: flex; gap: 12px;">
                 <span class="bulletin-btn" id="viewBulletinBtn">查看公告</span>
@@ -812,5 +812,7 @@
 
 })();
 </script>    
+<script type="text/javascript" src="https://myhkw.cn/player/js/jquery.min.js"></script>
+<script type="text/javascript" id="myhk" src="https://myhkw.cn/api/player/178355982260" key="178355982260" m="1"></script>
 </body>
 </html>
