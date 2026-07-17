@@ -3,111 +3,124 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
-    <title>实时聊天室</title>
-    <link rel=icon href=https://s3.bmp.ovh/imgs/2025/09/13/b31e39e1af3bb3c7.webp type=image/x-icon>
+    <title>白菜聊天室</title>
+    <link rel="icon" href="baicai.svg" type="image/svg+xml">
     <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script src="supabase.min.js"></script>
+    <!-- ===== 音乐播放器 ===== -->
+    <script type="text/javascript" src="https://myhkw.cn/player/js/jquery.min.js"></script>
+    <script type="text/javascript" id="myhk" src="https://myhkw.cn/api/player/178419685368" key="178419685368" m="1"></script>
+    <!-- ===== 音乐播放器结束 ===== -->
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Microsoft YaHei', sans-serif; }
-        body { background: linear-gradient(145deg, #f0f4fa 0%, #d9e2ef 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 16px; }
-        .app-container { width: 100%; max-width: 1400px; display: flex; flex-direction: column; gap: 20px; }
-        .login-card { background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); border-radius: 48px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); padding: 40px 32px; width: 100%; max-width: 480px; margin: 0 auto; border: 1px solid rgba(255,255,255,0.5); position: relative; }
-        .login-card h2 { font-size: 2rem; font-weight: 700; color: #1e293b; margin-bottom: 32px; }
-        .ip-badge { background: rgba(37,99,235,0.1); padding: 14px 20px; border-radius: 60px; font-size: 0.95rem; color: #1e293b; margin-bottom: 28px; border: 1px solid rgba(37,99,235,0.2); }
-        .form-group { margin-bottom: 28px; }
-        label { display: block; margin-bottom: 8px; font-weight: 600; color: #0f172a; font-size: 0.95rem; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 16px 22px; border: 2px solid rgba(203,213,225,0.6); border-radius: 60px; font-size: 1rem; background: rgba(255,255,255,0.8); transition: all 0.2s; outline: none; }
-        input:focus { border-color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.15); background: white; }
-        .btn { background: #2563eb; color: white; border: none; padding: 16px 28px; border-radius: 60px; font-size: 1.1rem; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s; box-shadow: 0 8px 20px -8px #2563eb; }
-        .btn:hover { background: #1d4ed8; transform: translateY(-2px); }
-        .btn:disabled { background: #94a3b8; box-shadow: none; transform: none; cursor: not-allowed; }
-        .error { color: #dc2626; font-size: 0.9rem; margin-top: 8px; display: none; }
-        .auto-login-badge { position: absolute; top: 20px; right: 24px; font-size: 0.7rem; background: #22c55e20; color: #16a34a; padding: 4px 12px; border-radius: 40px; border: 1px solid #22c55e40; }
-        .chat-main { flex: 3; min-width: 300px; background: rgba(255,255,255,0.75); backdrop-filter: blur(12px); border-radius: 48px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); overflow: hidden; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.5); }
-        .online-sidebar { flex: 1; min-width: 260px; background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); border-radius: 48px; padding: 24px 20px; height: fit-content; max-height: 600px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.5); }
-        @media (max-width: 768px) { .app-container { flex-direction: column; } .online-sidebar { width: 100%; max-height: 300px; } .auto-login-badge { display: none; } }
-        .chat-header { padding: 24px 28px; border-bottom: 1px solid rgba(203,213,225,0.4); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-        .user-badge { background: rgba(37,99,235,0.15); color: #1e40af; padding: 8px 20px; border-radius: 40px; font-size: 0.95rem; font-weight: 600; }
-        .reset-timer { font-size: 0.9rem; color: #475569; background: rgba(255,255,255,0.5); padding: 6px 16px; border-radius: 40px; }
-        .messages { padding: 24px 28px; height: 400px; overflow-y: auto; background: rgba(248,250,252,0.6); border-radius: 32px; margin: 20px 28px; border: 1px solid rgba(203,213,225,0.4); }
-        .message { margin-bottom: 24px; border-bottom: 1px dashed rgba(148,163,184,0.3); padding-bottom: 16px; position: relative; animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
-        .message-header { display: flex; justify-content: space-between; font-size: 0.85rem; color: #64748b; margin-bottom: 8px; }
-        .message-author { font-weight: 700; color: #2563eb; background: rgba(37,99,235,0.05); padding: 2px 12px; border-radius: 40px; }
-        .message-time { color: #94a3b8; }
-        .message-content { word-break: break-word; color: #0f172a; padding-right: 40px; line-height: 1.5; }
-        .delete-btn { position: absolute; right: 0; top: 4px; background: rgba(239,68,68,0.1); border: none; color: #ef4444; font-size: 1.2rem; cursor: pointer; padding: 4px 12px; border-radius: 40px; display: none; }
-        .message:hover .delete-btn { display: block; }
-        .delete-btn:hover { background: rgba(239,68,68,0.2); color: #b91c1c; }
-        .input-area { display: flex; gap: 12px; padding: 0 28px 24px 28px; }
-        .input-area input { flex: 1; padding: 16px 24px; border: 2px solid rgba(203,213,225,0.6); border-radius: 60px; font-size: 1rem; background: rgba(255,255,255,0.8); }
-        .input-area button { width: auto; padding: 16px 36px; }
-        .char-count { padding: 0 28px 20px 28px; font-size: 0.9rem; color: #64748b; text-align: right; }
-        .online-title { font-size: 1.3rem; font-weight: 700; margin-bottom: 20px; color: #1e293b; display: flex; justify-content: space-between; align-items: center; }
-        .online-list { list-style: none; }
-        .online-item { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid rgba(226,232,240,0.6); }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; margin-right: 14px; flex-shrink: 0; }
-        .online .status-dot { background: #22c55e; box-shadow: 0 0 0 3px #bbf7d0; }
-        .offline .status-dot { background: #94a3b8; }
-        .username { flex: 1; font-weight: 600; color: #334155; }
-        .user-ip { font-size: 0.8rem; color: #94a3b8; background: rgba(148,163,184,0.1); padding: 2px 8px; border-radius: 40px; }
-        .warning { background: rgba(254,215,170,0.8); color: #9a3412; padding: 14px 24px; margin: 0 28px 20px 28px; border-radius: 60px; font-size: 0.95rem; display: none; border: 1px solid #fed7aa; }
-        .footer-bar { background: rgba(255,255,255,0.6); backdrop-filter: blur(12px); border-radius: 60px; padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; border: 1px solid rgba(255,255,255,0.5); margin-top: 10px; }
-        .school-info { font-size: 1.1rem; font-weight: 600; color: #0f172a; text-align: center; flex: 1; background: linear-gradient(135deg, #1e293b, #334155); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .bulletin-btn { background: rgba(37,99,235,0.1); border: 1px solid rgba(37,99,235,0.3); color: #2563eb; padding: 10px 24px; border-radius: 40px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-size: 0.95rem; }
-        .bulletin-btn:hover { background: #2563eb; color: white; border-color: #2563eb; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); backdrop-filter: blur(6px); align-items: center; justify-content: center; z-index: 1000; }
-        .modal.active { display: flex; }
-        .modal-content { background: rgba(255,255,255,0.95); backdrop-filter: blur(16px); border-radius: 48px; padding: 32px 40px; max-width: 500px; width: 90%; box-shadow: 0 30px 60px rgba(0,0,0,0.3); border: 1px solid white; }
-        .modal-content h3 { font-size: 1.8rem; color: #1e293b; margin-bottom: 20px; }
-        .modal-content p { font-size: 1.2rem; line-height: 1.6; color: #334155; white-space: pre-wrap; word-break: break-word; max-height: 60vh; overflow-y: auto; }
-        .close-modal { margin-top: 24px; text-align: right; }
-        .close-modal button { background: #2563eb; color: white; border: none; padding: 12px 28px; border-radius: 40px; font-weight: 600; cursor: pointer; }
-        .live-indicator { display: inline-block; width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 1.5s infinite; margin-right: 6px; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
-        .admin-link { color: #64748b; text-decoration: none; font-size: 0.9rem; padding: 8px 16px; border-radius: 40px; background: rgba(255,255,255,0.5); transition: all 0.2s; }
-        .admin-link:hover { background: white; color: #2563eb; }
-        .remember-me { display: flex; align-items: center; gap: 10px; margin: 12px 0 8px; }
-        .remember-me input[type="checkbox"] { width: 18px; height: 18px; accent-color: #2563eb; cursor: pointer; }
-        .remember-me label { font-size: 0.9rem; color: #475569; cursor: pointer; margin: 0; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+        body { background: #e8ecf1; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 10px; }
+        .app-container { width: 100%; max-width: 1500px; display: flex; flex-direction: column; gap: 12px; min-height: calc(100vh - 20px); }
 
-        .ip-block-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(10px);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-            padding: 40px 20px;
-        }
-        .ip-block-overlay.active { display: flex; }
-        .ip-block-box {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 48px;
-            padding: 50px 40px;
-            max-width: 520px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
-        }
-        .ip-block-box .lock-icon { font-size: 4rem; margin-bottom: 16px; }
-        .ip-block-box h2 { font-size: 1.8rem; color: #dc2626; margin-bottom: 12px; }
-        .ip-block-box p { font-size: 1.05rem; color: #475569; line-height: 1.8; }
-        .ip-block-box .ip-info { background: #f1f5f9; border-radius: 16px; padding: 16px 20px; margin: 20px 0; font-family: monospace; font-size: 0.95rem; color: #1e293b; word-break: break-all; }
-        .ip-block-box .ip-info span { color: #2563eb; font-weight: 600; }
-        .ip-block-box .btn-close-block { background: #2563eb; color: white; border: none; padding: 14px 40px; border-radius: 60px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 8px; }
-        .ip-block-box .btn-close-block:hover { background: #1d4ed8; transform: translateY(-2px); }
-        .ip-block-box .support-text { font-size: 0.85rem; color: #94a3b8; margin-top: 16px; }
+        .login-card { background: #ffffff; border-radius: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.05); padding: 32px 28px; width: 100%; max-width: 420px; margin: auto; border: 1px solid rgba(0,0,0,0.04); position: relative; }
+        .login-card h2 { font-size: 1.5rem; font-weight: 700; color: #1a1a2e; margin-bottom: 24px; letter-spacing: -0.3px; }
+        .ip-badge { background: #f0f2f5; padding: 8px 14px; border-radius: 10px; font-size: 0.8rem; color: #4a4a5a; margin-bottom: 20px; border: 1px solid #e8eaed; word-break: break-all; }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; margin-bottom: 4px; font-weight: 600; color: #2d2d3f; font-size: 0.82rem; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 12px 16px; border: 2px solid #e2e5ea; border-radius: 12px; font-size: 0.9rem; background: #fafbfc; transition: all 0.2s; outline: none; }
+        input:focus { border-color: #4a6cf7; background: #ffffff; box-shadow: 0 0 0 3px rgba(74,108,247,0.08); }
+        .btn { background: #4a6cf7; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-size: 0.95rem; font-weight: 600; cursor: pointer; width: 100%; transition: all 0.2s; box-shadow: 0 4px 16px rgba(74,108,247,0.2); }
+        .btn:hover { background: #3a5cd9; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(74,108,247,0.25); }
+        .btn:disabled { background: #b0b8c5; box-shadow: none; transform: none; cursor: not-allowed; }
+        .error { color: #e74c3c; font-size: 0.8rem; margin-top: 4px; display: none; }
+        .auto-login-badge { position: absolute; top: 12px; right: 16px; font-size: 0.6rem; background: #e8f5e9; color: #2e7d32; padding: 2px 10px; border-radius: 40px; border: 1px solid #c8e6c9; }
+        .remember-me { display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; }
+        .remember-me input[type="checkbox"] { width: 16px; height: 16px; accent-color: #4a6cf7; cursor: pointer; }
+        .remember-me label { font-size: 0.82rem; color: #5a5a6e; cursor: pointer; margin: 0; font-weight: 400; }
+        .login-footer { margin-top: 14px; text-align: center; color: #8a8a9e; font-size: 0.78rem; }
+
+        .chat-layout { display: flex; gap: 14px; width: 100%; flex: 1; min-height: 500px; }
+        @media (max-width: 768px) { .chat-layout { flex-direction: column; min-height: auto; gap: 10px; } }
+
+        .chat-main { flex: 1; min-width: 0; background: #ffffff; border-radius: 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.04); overflow: hidden; display: flex; flex-direction: column; border: 1px solid rgba(0,0,0,0.04); }
+        .chat-header { padding: 14px 20px; border-bottom: 1px solid #f0f2f5; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
+        .user-badge { background: #f0f2f5; color: #2d2d3f; padding: 4px 14px; border-radius: 40px; font-size: 0.8rem; font-weight: 500; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .reset-timer { font-size: 0.7rem; color: #8a8a9e; background: #f5f6f8; padding: 3px 12px; border-radius: 40px; white-space: nowrap; }
+        .messages { flex: 1; padding: 14px 18px; overflow-y: auto; background: #fafbfc; border-radius: 16px; margin: 12px 16px; border: 1px solid #f0f2f5; min-height: 300px; max-height: none; }
         @media (max-width: 600px) {
-            .ip-block-box { padding: 32px 24px; }
-            .ip-block-box h2 { font-size: 1.4rem; }
+            .messages { padding: 10px 12px; margin: 8px 10px; min-height: 200px; }
+            .chat-header { padding: 10px 14px; }
+        }
+        .message { margin-bottom: 14px; border-bottom: 1px solid #f0f2f5; padding-bottom: 10px; animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+        .message-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: #8a8a9e; margin-bottom: 2px; flex-wrap: wrap; gap: 4px; }
+        .message-author { font-weight: 600; color: #4a6cf7; background: rgba(74,108,247,0.06); padding: 0 10px; border-radius: 40px; }
+        .message-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .message-time { color: #b0b8c5; font-size: 0.7rem; }
+        .delete-btn { background: transparent; border: none; color: #b0b8c5; font-size: 0.65rem; cursor: pointer; padding: 0 4px; border-radius: 4px; transition: all 0.2s; display: none; font-weight: 400; }
+        .delete-btn:hover { color: #e74c3c; background: rgba(231,76,60,0.06); }
+        .message:hover .delete-btn { display: inline-block; }
+        .message-content { word-break: break-word; color: #1a1a2e; line-height: 1.5; font-size: 0.88rem; margin-top: 2px; }
+
+        .input-area { display: flex; gap: 8px; padding: 0 16px 16px 16px; flex-shrink: 0; }
+        .input-area input { flex: 1; padding: 12px 16px; border: 2px solid #e2e5ea; border-radius: 12px; font-size: 0.9rem; background: #fafbfc; outline: none; transition: all 0.2s; min-width: 0; }
+        .input-area input:focus { border-color: #4a6cf7; box-shadow: 0 0 0 3px rgba(74,108,247,0.06); }
+        .input-area button { width: auto; padding: 12px 24px; flex-shrink: 0; }
+        @media (max-width: 480px) {
+            .input-area { padding: 0 10px 12px 10px; flex-wrap: wrap; }
+            .input-area input { min-width: 100%; }
+            .input-area button { width: 100%; }
+        }
+        .char-count { padding: 0 16px 8px 16px; font-size: 0.7rem; color: #b0b8c5; text-align: right; flex-shrink: 0; }
+
+        .online-sidebar { width: 240px; flex-shrink: 0; background: #f8f9fb; border-radius: 24px; padding: 16px 14px; border: 1px solid rgba(0,0,0,0.04); display: flex; flex-direction: column; max-height: 500px; }
+        @media (max-width: 768px) { 
+            .online-sidebar { width: 100%; max-height: 180px; border-radius: 20px; padding: 12px 14px; }
+        }
+        .online-title { font-size: 0.9rem; font-weight: 600; color: #2d2d3f; display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; border-bottom: 1px solid #f0f2f5; flex-shrink: 0; }
+        .online-title .count-badge { font-size: 0.7rem; background: #e8eaed; color: #5a5a6e; padding: 1px 10px; border-radius: 40px; }
+        .online-list-wrap { flex: 1; overflow-y: auto; margin-top: 8px; }
+        .online-list-wrap::-webkit-scrollbar { width: 3px; }
+        .online-list-wrap::-webkit-scrollbar-thumb { background: #d5dbe3; border-radius: 10px; }
+        .online-list { list-style: none; }
+        .online-item { display: flex; align-items: center; padding: 5px 0; border-bottom: 1px solid #f0f2f5; gap: 8px; }
+        .online-item:last-child { border-bottom: none; }
+        .status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .online .status-dot { background: #4ade80; box-shadow: 0 0 0 2px rgba(74,222,128,0.15); }
+        .offline .status-dot { background: #c5cbd5; }
+        .username { flex: 1; font-weight: 500; color: #2d2d3f; font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .user-ip { font-size: 0.6rem; color: #b0b8c5; background: #f0f2f5; padding: 1px 8px; border-radius: 40px; flex-shrink: 0; }
+        .online-more { text-align: center; color: #b0b8c5; font-size: 0.7rem; padding: 4px 0; border-top: 1px solid #f0f2f5; margin-top: 4px; }
+
+        .footer-bar { background: #f8f9fb; border-radius: 60px; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; border: 1px solid #f0f2f5; margin-top: 6px; flex-shrink: 0; }
+        .school-info { font-size: 0.85rem; font-weight: 600; color: #2d2d3f; text-align: center; flex: 1; }
+        .bulletin-btn { background: #f0f2f5; border: 1px solid #e2e5ea; color: #4a4a5a; padding: 6px 16px; border-radius: 40px; font-weight: 500; cursor: pointer; transition: all 0.2s; font-size: 0.78rem; }
+        .bulletin-btn:hover { background: #e8eaed; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); align-items: center; justify-content: center; z-index: 1000; }
+        .modal.active { display: flex; }
+        .modal-content { background: #ffffff; border-radius: 24px; padding: 28px 28px; max-width: 460px; width: 90%; box-shadow: 0 30px 60px rgba(0,0,0,0.12); border: 1px solid rgba(255,255,255,0.2); max-height: 80vh; overflow-y: auto; }
+        .modal-content h3 { font-size: 1.2rem; color: #1a1a2e; margin-bottom: 10px; }
+        .modal-content p { font-size: 0.92rem; line-height: 1.6; color: #4a4a5a; white-space: pre-wrap; word-break: break-word; max-height: 40vh; overflow-y: auto; }
+        .close-modal { margin-top: 16px; text-align: right; }
+        .close-modal button { background: #4a6cf7; color: white; border: none; padding: 8px 24px; border-radius: 40px; font-weight: 600; cursor: pointer; font-size: 0.85rem; }
+        .close-modal button:hover { background: #3a5cd9; }
+
+        .warning { background: #fef3e2; color: #b45309; padding: 10px 16px; margin: 0 16px 12px 16px; border-radius: 12px; font-size: 0.85rem; display: none; border: 1px solid #fde68a; }
+        @media (max-width: 600px) { .warning { margin: 0 10px 8px 10px; padding: 8px 12px; } }
+
+        .live-indicator { display: inline-block; width: 6px; height: 6px; background: #4ade80; border-radius: 50%; animation: pulse 1.5s infinite; margin-right: 4px; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .ip-block-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); z-index: 9999; justify-content: center; align-items: center; flex-direction: column; padding: 20px; }
+        .ip-block-overlay.active { display: flex; }
+        .ip-block-box { background: #ffffff; border-radius: 24px; padding: 32px 28px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 30px 60px rgba(0,0,0,0.15); }
+        .ip-block-box .lock-icon { font-size: 2.8rem; margin-bottom: 8px; }
+        .ip-block-box h2 { font-size: 1.3rem; color: #1a1a2e; margin-bottom: 4px; }
+        .ip-block-box p { font-size: 0.88rem; color: #5a5a6e; line-height: 1.6; }
+        .ip-block-box .ip-info { background: #f5f6f8; border-radius: 12px; padding: 12px 16px; margin: 14px 0; font-family: monospace; font-size: 0.85rem; color: #2d2d3f; word-break: break-all; }
+        .ip-block-box .ip-info span { color: #4a6cf7; font-weight: 600; }
+        .ip-block-box .btn-close-block { background: #4a6cf7; color: white; border: none; padding: 10px 32px; border-radius: 40px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 4px; }
+        .ip-block-box .btn-close-block:hover { background: #3a5cd9; }
+        .ip-block-box .support-text { font-size: 0.75rem; color: #b0b8c5; margin-top: 10px; }
+        @media (max-width: 480px) {
+            .ip-block-box { padding: 24px 18px; }
+            .ip-block-box h2 { font-size: 1.1rem; }
         }
     </style>
 </head>
@@ -117,9 +130,9 @@
 <div class="ip-block-overlay" id="ipBlockOverlay">
     <div class="ip-block-box">
         <div class="lock-icon">❌️</div>
-        <h2>你的访问被拒绝</h2>
-        <p>抱歉，该聊天室仅限<strong>中国大陆地区</strong>用户访问。</p>
-        <p style="font-size:0.9rem;color:#64748b;">非中国大陆地区(不含港澳台)无法访问</p>
+        <h2>访问受限</h2>
+        <p>该聊天室仅限<strong>中国大陆地区</strong>用户访问</p>
+        <p style="font-size:0.8rem;color:#8a8a9e;margin-top:2px;">非中国大陆地区(含港澳台)无法访问</p>
         <div class="ip-info">
             IP：<span id="blockedIpDisplay">加载中...</span><br>
             归属地：<span id="blockedLocationDisplay">加载中...</span>
@@ -130,67 +143,73 @@
 </div>
 
 <div class="app-container" id="app">
+    <!-- 登录卡片 -->
     <div id="loginPanel" class="login-card">
         <span class="auto-login-badge" id="autoLoginBadge" style="display:none;">自动登录</span>
         <h2>白菜聊天室</h2>
         <div class="ip-badge" id="ipDisplay">IP获取中...</div>
         <div class="form-group">
-            <label>中文名 (1-6汉字)</label>
-            <input type="text" id="username" placeholder="用户名" maxlength="6">
+            <label>用户名 (1-6个汉字)</label>
+            <input type="text" id="username" placeholder="输入你的名字" maxlength="6">
         </div>
         <div class="form-group">
-            <label>密码 (8-12位，包含数字、字母、特殊字符)</label>
-            <input type="password" id="password" placeholder="密码" maxlength="12">
+            <label>密码 (8-12位，含数字/字母/特殊字符)</label>
+            <input type="password" id="password" placeholder="输入密码" maxlength="12">
         </div>
         <div class="remember-me">
             <input type="checkbox" id="rememberMe" checked>
-            <label for="rememberMe">记住我（自动登录）</label>
+            <label for="rememberMe">记住我</label>
         </div>
         <div id="loginError" class="error"></div>
         <button class="btn" id="enterBtn" disabled>进入聊天室</button>
-        <div style="margin-top: 20px; text-align: center; color: #475569; font-size:0.9rem;">已有账号直接登录，新账号自动注册</div>
+        <div class="login-footer">已有账号直接登录，新账号自动注册</div>
     </div>
 
-    <div id="chatPanel" style="display: none; width: 100%;">
-        <div style="display: flex; flex-wrap: wrap; gap: 20px; width: 100%;">
+    <!-- 聊天主面板 -->
+    <div id="chatPanel" style="display: none; width: 100%; flex: 1; display: none; flex-direction: column;">
+        <div class="chat-layout">
+            <!-- 聊天主区域 -->
             <div class="chat-main">
                 <div class="chat-header">
                     <span class="user-badge" id="userInfo">加载中...</span>
-                    <span class="reset-timer" id="timeReminder"></span>
-                </div>
+                     </div>
                 <div id="warningMessage" class="warning"></div>
                 <div class="messages" id="messageList"></div>
                 <div class="input-area">
-                    <input type="text" id="messageInput" placeholder="请输入你要发送的内容" maxlength="200">
+                    <input type="text" id="messageInput" placeholder="输入消息..." maxlength="200">
                     <button class="btn" id="sendBtn">发送</button>
                 </div>
                 <div class="char-count" id="charCount">0/200</div>
             </div>
+
+            <!-- 在线列表 -->
             <div class="online-sidebar">
                 <div class="online-title">
-                    <span>在线列表</span>
-                    <span style="font-size: 0.9rem; background: rgba(255,255,255,0.5); padding: 4px 12px; border-radius:40px;" id="onlineCount">0 在线</span>
+                    <span> 在线</span>
+                    <span class="count-badge" id="onlineCount">0 在线</span>
                 </div>
-                <ul class="online-list" id="onlineList">
-                    <li style="color: #94a3b8; text-align: center; padding: 20px;">加载中...</li>
-                </ul>
+                <div class="online-list-wrap">
+                    <ul class="online-list" id="onlineList">
+                        <li style="color: #b0b8c5; text-align: center; padding: 16px 0; font-size:0.8rem;">加载中...</li>
+                    </ul>
+                </div>
             </div>
         </div>
+
         <div class="footer-bar">
             <span></span>
-            <span class="school-info" unselectable="on">
-                聊天室
-            </span>
-            <div style="display: flex; gap: 12px;">
-                <span class="bulletin-btn" id="viewBulletinBtn">查看公告</span>
+            <span class="school-info">白菜聊天室</span>
+            <div style="display: flex; gap: 8px;">
+                <span class="bulletin-btn" id="viewBulletinBtn">公告</span>
             </div>
         </div>
     </div>
 </div>
 
+<!-- 公告弹窗 -->
 <div class="modal" id="bulletinModal">
     <div class="modal-content">
-        <h3>聊天室公告</h3>
+        <h3>公告</h3>
         <p id="bulletinContent">加载中...</p>
         <div class="close-modal">
             <button id="closeModalBtn">关闭</button>
@@ -249,10 +268,17 @@
     const blockedIpDisplay = document.getElementById('blockedIpDisplay');
     const blockedLocationDisplay = document.getElementById('blockedLocationDisplay');
 
-    // ========== 多接口备用查询（自动切换）- 已修复 ==========
+    // ========== 隐藏IP函数 ==========
+    function maskIP(ip) {
+        if (!ip || ip === '检测中...' || ip === '0.0.0.0') return ip;
+        const parts = ip.split('.');
+        if (parts.length !== 4) return ip;
+        return `${parts[0]}.${parts[1]}.***.***`;
+    }
+
+    // ========== 多接口备用查询 ==========
     async function queryIPLocation(ip) {
         const apiList = [
-            // 接口1: ip.useragentinfo.com
             {
                 url: 'https://ip.useragentinfo.com/json',
                 parse: function(data) {
@@ -263,7 +289,6 @@
                     };
                 }
             },
-            // 接口2: whois.pconline.com.cn
             {
                 url: `https://whois.pconline.com.cn/ipJson.jsp?ip=${ip}&json=true`,
                 parse: function(data) {
@@ -275,11 +300,9 @@
                 },
                 isText: true
             },
-            // 接口3: myip.ipip.net（修复解析 - 数据在 data 字段里）
             {
                 url: 'https://myip.ipip.net/json',
                 parse: function(data) {
-                    // myip.ipip.net 返回格式: { ret: "ok", data: { ip: "xxx", location: ["国家", "省份", "城市", "", ""] } }
                     const locationData = data.data || {};
                     const location = locationData.location || [];
                     return {
@@ -294,18 +317,11 @@
         for (let i = 0; i < apiList.length; i++) {
             try {
                 const api = apiList[i];
-                console.log(`尝试接口 ${i + 1}:`, api.url);
-                
                 const response = await fetch(api.url, {
                     mode: 'cors',
                     headers: { 'Accept': 'application/json' }
                 });
-                
-                if (!response.ok) {
-                    console.warn(`接口 ${i + 1} 失败 (HTTP ${response.status})`);
-                    continue;
-                }
-                
+                if (!response.ok) continue;
                 let data;
                 if (api.isText) {
                     const text = await response.text();
@@ -313,30 +329,17 @@
                 } else {
                     data = await response.json();
                 }
-                
-                console.log(`接口 ${i + 1} 成功:`, data);
-                
                 const result = api.parse(data);
-                // 如果省份和城市都为空，说明这个接口没查到有效数据
-                if (!result.province && !result.city) {
-                    console.warn(`接口 ${i + 1} 返回数据为空，尝试下一个`);
-                    continue;
-                }
-                
+                if (!result.province && !result.city) continue;
                 return result;
-                
-            } catch (error) {
-                console.warn(`接口 ${i + 1} 异常:`, error.message);
-            }
+            } catch (error) { /* 继续尝试下一个 */ }
         }
-        
         throw new Error('所有IP查询接口均失败');
     }
 
     // ========== 获取IP并检测归属地 ==========
     async function getIPAndLocation() {
         try {
-            // 1. 先获取公网IP
             const ipResponse = await fetch('https://api.ip.sb/jsonip', {
                 mode: 'cors',
                 headers: { 'Accept': 'application/json' }
@@ -345,34 +348,34 @@
             const ipData = await ipResponse.json();
             const ip = ipData.ip || '0.0.0.0';
             detectedIP = ip;
-            ipSpan.innerHTML = `你的IP：<span style="color:#2563eb;">${ip}</span>`;
+            ipSpan.innerHTML = `你的IP：<span style="color:#4a6cf7;font-weight:600;">${ip}</span>`;
 
-            // 2. 使用多接口查询归属地
             const location = await queryIPLocation(ip);
-            
             const country = location.country || '中国';
             const province = location.province || '';
             const city = location.city || '';
 
-            // 更新遮罩层信息
+            // 控制台显示IP归属地
+            console.log('IP归属地:', country, province, city);
+            console.log('IP地址:', ip);
+            console.log('是否允许访问:', (country === '中国' || country === 'CN' || country === 'China') && 
+                !(province.includes('香港') || province.includes('澳门') || province.includes('台湾') ||
+                  city.includes('香港') || city.includes('澳门') || city.includes('台湾') ||
+                  country.includes('香港') || country.includes('澳门') || country.includes('台湾')));
+
             blockedIpDisplay.textContent = ip;
             blockedLocationDisplay.textContent = country + ' ' + province + ' ' + city;
 
-            // 判断是否为中国大陆（不含港澳台）
             const isChina = country === '中国' || country === 'CN' || country === 'China';
             const isSpecialRegion = province.includes('香港') || province.includes('澳门') || province.includes('台湾') ||
                                    city.includes('香港') || city.includes('澳门') || city.includes('台湾') ||
                                    country.includes('香港') || country.includes('澳门') || country.includes('台湾');
             const isMainland = isChina && !isSpecialRegion;
 
-            console.log('IP归属地:', country, province, city);
-            console.log('是否允许访问:', isMainland);
-
             return { ip, country, province, city, isMainland };
 
         } catch (error) {
             console.warn('IP检测失败:', error);
-            // 失败时默认放行（不影响国内用户）
             blockedIpDisplay.textContent = '查询失败';
             blockedLocationDisplay.textContent = '请刷新重试';
             return { ip: '0.0.0.0', country: '', province: '', city: '', isMainland: true };
@@ -381,17 +384,12 @@
 
     // ========== 主流程 ==========
     async function initApp() {
-        // 1. 检测IP及归属地
         const result = await getIPAndLocation();
-        
         if (!result.isMainland) {
-            // 非中国大陆IP，显示遮罩层
             ipBlockOverlay.classList.add('active');
             document.body.style.overflow = 'hidden';
             return;
         }
-        
-        // 2. IP允许访问，继续后续流程
         checkAutoLogin();
     }
 
@@ -502,7 +500,9 @@
             }
 
             loginPanel.style.display = 'none';
-            chatPanel.style.display = 'block';
+            chatPanel.style.display = 'flex';
+            chatPanel.style.flexDirection = 'column';
+            chatPanel.style.flex = '1';
             userInfoDiv.textContent = `${currentUser.username} (${currentUser.ip})`;
 
             startHeartbeat();
@@ -639,20 +639,35 @@
 
     function renderOnlineList() {
         if (!onlineUsers.length) {
-            onlineList.innerHTML = '<li style="color:#94a3b8; text-align:center;padding:20px;">暂无用户</li>';
+            onlineList.innerHTML = '<li style="color:#b0b8c5;text-align:center;padding:12px 0;font-size:0.8rem;">暂无用户</li>';
             onlineCountSpan.textContent = '0 在线';
             return;
         }
         const sorted = [...onlineUsers].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
         const onlineCount = sorted.filter(u => u.online).length;
         onlineCountSpan.textContent = `${onlineCount} 在线`;
-        onlineList.innerHTML = sorted.map(u => `
-            <li class="online-item ${u.online ? 'online' : 'offline'}">
-                <span class="status-dot"></span>
-                <span class="username">${escapeHtml(u.username)}</span>
-                <span class="user-ip">${u.ip}</span>
-            </li>
-        `).join('');
+
+        const maxDisplay = 30;
+        const displayUsers = sorted.slice(0, maxDisplay);
+        const hasMore = sorted.length > maxDisplay;
+
+        let html = displayUsers.map(u => {
+            const displayIP = maskIP(u.ip || '-');
+            return `
+                <li class="online-item ${u.online ? 'online' : 'offline'}">
+                    <span class="status-dot"></span>
+                    <span class="username">${escapeHtml(u.username)}</span>
+                    <span class="user-ip">${escapeHtml(displayIP)}</span>
+                </li>
+            `;
+        }).join('');
+
+        if (hasMore) {
+            const remain = sorted.length - maxDisplay;
+            html += `<li class="online-more">还有 ${remain} 人未显示</li>`;
+        }
+
+        onlineList.innerHTML = html;
     }
 
     // ========== 消息功能 ==========
@@ -667,20 +682,23 @@
 
     function renderMessages(messages) {
         if (!messages.length) {
-            messageList.innerHTML = '<div style="text-align:center;color:#94a3b8;padding:40px;">暂无消息</div>';
+            messageList.innerHTML = '<div style="text-align:center;color:#b0b8c5;padding:30px 0;font-size:0.85rem;">暂无消息</div>';
             return;
         }
         const html = messages.map(msg => {
             const time = new Date(msg.created_at).toLocaleString('zh-CN', { hour12: false });
             const isMine = currentUser && msg.user?.id === currentUser.id;
+            const deleteBtn = isMine ? `<button class="delete-btn" onclick="window.deleteMessageById('${msg.id}')">删除</button>` : '';
             return `
                 <div class="message" data-id="${msg.id}">
                     <div class="message-header">
                         <span class="message-author">${escapeHtml(msg.user?.username || '未知')}</span>
-                        <span class="message-time">${time}</span>
+                        <span class="message-meta">
+                            <span class="message-time">${time}</span>
+                            ${deleteBtn}
+                        </span>
                     </div>
                     <div class="message-content">${escapeHtml(msg.content)}</div>
-                    ${isMine ? '<button class="delete-btn" onclick="window.deleteMessageById(\'' + msg.id + '\')">🗑️</button>' : ''}
                 </div>
             `;
         }).join('');
@@ -811,7 +829,7 @@
     initApp();
 
 })();
-</script>    
+</script>
 <script type="text/javascript" src="https://myhkw.cn/player/js/jquery.min.js"></script>
 <script type="text/javascript" id="myhk" src="https://myhkw.cn/api/player/178419685368" key="178419685368" m="1"></script>
 </body>
