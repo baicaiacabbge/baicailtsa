@@ -637,13 +637,33 @@
             .subscribe();
     }
 
+    // ========== ✅ 修复：稳定排序，防止用户抢位置 ==========
     function renderOnlineList() {
         if (!onlineUsers.length) {
             onlineList.innerHTML = '<li style="color:#b0b8c5;text-align:center;padding:12px 0;font-size:0.8rem;">暂无用户</li>';
             onlineCountSpan.textContent = '0 在线';
             return;
         }
-        const sorted = [...onlineUsers].sort((a, b) => (b.online ? 1 : 0) - (a.online ? 1 : 0));
+
+        // 稳定排序：
+        // 1. 在线用户排在前面（online = true）
+        // 2. 同状态按 last_seen 升序（越早进入的越靠上，先进入的永远在上面）
+        // 3. 如果 last_seen 相同，按用户名排序保证绝对稳定
+        const sorted = [...onlineUsers].sort((a, b) => {
+            // 优先按在线状态排序
+            if (a.online !== b.online) {
+                return b.online ? 1 : -1; // 在线优先
+            }
+            // 同状态按 last_seen 排序（从旧到新 = 先进入的在上方）
+            const aTime = a.last_seen || a.created_at || '';
+            const bTime = b.last_seen || b.created_at || '';
+            if (aTime !== bTime) {
+                return aTime < bTime ? -1 : 1;
+            }
+            // 最后按用户名保证绝对稳定
+            return a.username.localeCompare(b.username);
+        });
+
         const onlineCount = sorted.filter(u => u.online).length;
         onlineCountSpan.textContent = `${onlineCount} 在线`;
 
@@ -830,7 +850,5 @@
 
 })();
 </script>
-<script type="text/javascript" src="https://myhkw.cn/player/js/jquery.min.js"></script>
-<script type="text/javascript" id="myhk" src="https://myhkw.cn/api/player/178419685368" key="178419685368" m="1"></script>
 </body>
 </html>
