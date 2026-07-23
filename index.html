@@ -637,7 +637,9 @@
             .subscribe();
     }
 
-    // ========== ✅ 修复：稳定排序，防止用户抢位置 ==========
+    // ============================================================
+    // wz
+    // ============================================================
     function renderOnlineList() {
         if (!onlineUsers.length) {
             onlineList.innerHTML = '<li style="color:#b0b8c5;text-align:center;padding:12px 0;font-size:0.8rem;">暂无用户</li>';
@@ -645,22 +647,20 @@
             return;
         }
 
-        // 稳定排序：
-        // 1. 在线用户排在前面（online = true）
-        // 2. 同状态按 last_seen 升序（越早进入的越靠上，先进入的永远在上面）
-        // 3. 如果 last_seen 相同，按用户名排序保证绝对稳定
+        // 稳定排序：按 created_at 升序（先注册的永远在顶部）
+        // 同状态在线优先，但同一状态下按注册时间固定排列
         const sorted = [...onlineUsers].sort((a, b) => {
-            // 优先按在线状态排序
+            // 1. 在线用户优先
             if (a.online !== b.online) {
-                return b.online ? 1 : -1; // 在线优先
+                return b.online ? 1 : -1;
             }
-            // 同状态按 last_seen 排序（从旧到新 = 先进入的在上方）
-            const aTime = a.last_seen || a.created_at || '';
-            const bTime = b.last_seen || b.created_at || '';
+            // 2. 同状态按 created_at 升序（先注册的永远在上面）
+            const aTime = a.created_at || '';
+            const bTime = b.created_at || '';
             if (aTime !== bTime) {
                 return aTime < bTime ? -1 : 1;
             }
-            // 最后按用户名保证绝对稳定
+            // 3. 相同则按用户名排序（保证绝对稳定）
             return a.username.localeCompare(b.username);
         });
 
