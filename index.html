@@ -5,13 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
     <title>白菜聊天室</title>
     <link rel="icon" href="baicai.svg" type="image/svg+xml">
+    <script src="baicaisupabase.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script src="supabase.min.js"></script>
-    <!-- ===== 音乐播放器 ===== -->
-    <script type="text/javascript" src="https://myhkw.cn/player/js/jquery.min.js"></script>
-    <script type="text/javascript" id="myhk" src="https://myhkw.cn/api/player/178419685368" key="178419685368" m="1"></script>
-    <!-- ===== 音乐播放器结束 ===== -->
+    <script src="https://static.geetest.com/v4/gt4.js"></script>
+    <script src="bcyz.js"></script>
+    
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
         body { background: #e8ecf1; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 10px; }
@@ -91,6 +91,8 @@
         .school-info { font-size: 0.85rem; font-weight: 600; color: #2d2d3f; text-align: center; flex: 1; }
         .bulletin-btn { background: #f0f2f5; border: 1px solid #e2e5ea; color: #4a4a5a; padding: 6px 16px; border-radius: 40px; font-weight: 500; cursor: pointer; transition: all 0.2s; font-size: 0.78rem; }
         .bulletin-btn:hover { background: #e8eaed; }
+        .logout-btn { background: #f0f2f5; border: 1px solid #e2e5ea; color: #e74c3c; padding: 6px 16px; border-radius: 40px; font-weight: 500; cursor: pointer; transition: all 0.2s; font-size: 0.78rem; }
+        .logout-btn:hover { background: #fde8e8; border-color: #f5c6c6; }
 
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.35); backdrop-filter: blur(4px); align-items: center; justify-content: center; z-index: 1000; }
         .modal.active { display: flex; }
@@ -121,6 +123,34 @@
         @media (max-width: 480px) {
             .ip-block-box { padding: 24px 18px; }
             .ip-block-box h2 { font-size: 1.1rem; }
+        }
+
+        /* 极验验证码容器 */
+        #captcha-container {
+            margin: 12px 0 16px 0;
+            display: flex;
+            justify-content: center;
+        }
+        #captcha-container .geetest_holder {
+            width: 100% !important;
+        }
+        .geetest_holder {
+            width: 100% !important;
+        }
+        .geetest_widget {
+            width: 100% !important;
+        }
+
+        /* 验证码重置提示 */
+        .captcha-reset-hint {
+            font-size: 0.75rem;
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 4px;
+            display: none;
+        }
+        .captcha-reset-hint.show {
+            display: block;
         }
     </style>
 </head>
@@ -156,6 +186,9 @@
             <label>密码 (8-12位，含数字/字母/特殊字符)</label>
             <input type="password" id="password" placeholder="输入密码" maxlength="12">
         </div>
+        <!-- 极验验证码 -->
+        <div id="captcha-container"></div>
+        <div class="captcha-reset-hint" id="captchaResetHint"></div>      
         <div class="remember-me">
             <input type="checkbox" id="rememberMe" checked>
             <label for="rememberMe">记住我</label>
@@ -172,7 +205,8 @@
             <div class="chat-main">
                 <div class="chat-header">
                     <span class="user-badge" id="userInfo">加载中...</span>
-                     </div>
+                    <button class="logout-btn" id="logoutBtn">退出登录</button>
+                </div>
                 <div id="warningMessage" class="warning"></div>
                 <div class="messages" id="messageList"></div>
                 <div class="input-area">
@@ -219,9 +253,24 @@
 
 <script>
 (function() {
-    // ========== 配置 ==========
-    const SUPABASE_URL = 'https://vleraaavbfokdxjaaheg.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZsZXJhYWF2YmZva2R4amFhaGVnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM4NTcyNjAsImV4cCI6MjA5OTQzMzI2MH0.sjnWeEucxZrZqVluk5r0lXQdRA_Xs3Rt6XBsdyJuWXM';
+    'use strict';
+
+    // ============================================================
+    // 检查 Supabase 配置是否已加载
+    // ============================================================
+    if (typeof window.baicaiSupabase === 'undefined') {
+        console.error('[Supabase] 配置未加载，请确保 baicaisupabase.js 已正确引入');
+        document.getElementById('loginError').textContent = '系统配置加载失败，请刷新页面重试';
+        document.getElementById('loginError').style.display = 'block';
+        return;
+    }
+
+    // ========== 从全局配置获取 Supabase 配置 ==========
+    const SUPABASE_URL = window.baicaiSupabase.url;
+    const SUPABASE_ANON_KEY = window.baicaiSupabase.anonKey;
+    
+    console.log('[Supabase] 配置加载成功');
+    console.log('[Supabase] URL:', SUPABASE_URL);
     
     const { createClient } = supabase;
     const _supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -239,6 +288,7 @@
     let deviceFingerprint = null;
     let isAutoLoggingIn = false;
     let detectedIP = '检测中...';
+    let loginAttemptCount = 0;
 
     // DOM 元素
     const loginPanel = document.getElementById('loginPanel');
@@ -254,7 +304,6 @@
     const sendBtn = document.getElementById('sendBtn');
     const charCount = document.getElementById('charCount');
     const warningDiv = document.getElementById('warningMessage');
-    const timeReminder = document.getElementById('timeReminder');
     const onlineList = document.getElementById('onlineList');
     const onlineCountSpan = document.getElementById('onlineCount');
     const viewBulletinBtn = document.getElementById('viewBulletinBtn');
@@ -263,10 +312,30 @@
     const closeModalBtn = document.getElementById('closeModalBtn');
     const rememberMeCheckbox = document.getElementById('rememberMe');
     const autoLoginBadge = document.getElementById('autoLoginBadge');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const captchaResetHint = document.getElementById('captchaResetHint');
 
     const ipBlockOverlay = document.getElementById('ipBlockOverlay');
     const blockedIpDisplay = document.getElementById('blockedIpDisplay');
     const blockedLocationDisplay = document.getElementById('blockedLocationDisplay');
+
+    // ========== 重置验证码状态 ==========
+    function resetCaptchaState(showHint = true) {
+        // 使用 bcyz.js 重置验证码
+        if (window.geetest) {
+            window.geetest.reset();
+        }
+        
+        if (showHint) {
+            captchaResetHint.textContent = '';
+            captchaResetHint.classList.add('show');
+            setTimeout(() => {
+                captchaResetHint.classList.remove('show');
+            }, 5000);
+        }
+        enterBtn.disabled = true;
+        checkLoginReady();
+    }
 
     // ========== 隐藏IP函数 ==========
     function maskIP(ip) {
@@ -355,13 +424,8 @@
             const province = location.province || '';
             const city = location.city || '';
 
-            // 控制台显示IP归属地
             console.log('IP归属地:', country, province, city);
             console.log('IP地址:', ip);
-            console.log('是否允许访问:', (country === '中国' || country === 'CN' || country === 'China') && 
-                !(province.includes('香港') || province.includes('澳门') || province.includes('台湾') ||
-                  city.includes('香港') || city.includes('澳门') || city.includes('台湾') ||
-                  country.includes('香港') || country.includes('澳门') || country.includes('台湾')));
 
             blockedIpDisplay.textContent = ip;
             blockedLocationDisplay.textContent = country + ' ' + province + ' ' + city;
@@ -382,6 +446,55 @@
         }
     }
 
+    // ========== 初始化极验（使用 bcyz.js） ==========
+    function initGeetest() {
+        return new Promise((resolve, reject) => {
+            if (typeof window.geetest === 'undefined') {
+                reject(new Error('bcyz.js 未加载'));
+                return;
+            }
+
+            // 验证成功回调
+            function onSuccess() {
+                console.log('[极验] 验证成功');
+                captchaResetHint.classList.remove('show');
+                checkLoginReady();
+            }
+
+            // 验证失败回调
+            function onError() {
+                console.log('[极验] 验证出错');
+                loginError.textContent = '验证码验证失败，请重试';
+                loginError.style.display = 'block';
+                enterBtn.disabled = true;
+            }
+
+            // 初始化极验
+            window.geetest.init('captcha-container', onSuccess, onError)
+                .then(function(captchaObj) {
+                    resolve(captchaObj);
+                })
+                .catch(function(err) {
+                    reject(err);
+                });
+        });
+    }
+
+    // ========== 检查登录就绪状态 ==========
+    function checkLoginReady() {
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
+        const nameValid = /^[\u4e00-\u9fa5]{1,6}$/.test(username) && username !== 'null';
+        const pwdValid = validatePassword(password);
+        const isVerified = window.geetest ? window.geetest.getVerified() : false;
+        const ready = nameValid && pwdValid && isVerified && !isAutoLoggingIn;
+        enterBtn.disabled = !ready;
+        
+        if (ready) {
+            loginError.style.display = 'none';
+        }
+    }
+
     // ========== 主流程 ==========
     async function initApp() {
         const result = await getIPAndLocation();
@@ -390,6 +503,16 @@
             document.body.style.overflow = 'hidden';
             return;
         }
+        
+        // 初始化极验
+        try {
+            await initGeetest();
+        } catch (e) {
+            console.error('极验初始化失败:', e);
+            loginError.textContent = '验证码加载失败，请刷新页面重试';
+            loginError.style.display = 'block';
+        }
+        
         checkAutoLogin();
     }
 
@@ -469,7 +592,22 @@
 
             if (existingUser) {
                 const match = await bcrypt.compare(password, existingUser.password_hash);
-                if (!match) throw new Error('密码错误');
+                if (!match) {
+                    loginAttemptCount++;
+                    console.log(`密码错误，第 ${loginAttemptCount} 次尝试`);
+                    
+                    resetCaptchaState(true);
+                    
+                    loginError.textContent = '密码错误';
+                    loginError.style.color = '#dc2626';
+                    loginError.style.display = 'block';
+                    
+                    passwordInput.value = '';
+                    
+                    throw new Error('密码错误');
+                }
+
+                loginAttemptCount = 0;
 
                 const { error: updateErr } = await _supabase
                     .from('users')
@@ -482,6 +620,8 @@
                 }
                 currentUser = { ...existingUser, ip: currentIP, fingerprint: deviceFingerprint };
             } else {
+                loginAttemptCount = 0;
+                
                 const saltRounds = 10;
                 const hash = await bcrypt.hash(password, saltRounds);
 
@@ -494,10 +634,13 @@
                 if (insertErr) {
                     if (insertErr.message.includes('banned')) throw new Error('该设备或IP已被封禁');
                     if (insertErr.message.includes('duplicate key')) throw new Error('用户名已存在，请直接登录');
+                    if (insertErr.message.includes('该IP已达到最大注册用户数')) throw new Error('该IP已达到最大注册用户数（3个）');
                     throw insertErr;
                 }
                 currentUser = newUser;
             }
+
+            captchaResetHint.classList.remove('show');
 
             loginPanel.style.display = 'none';
             chatPanel.style.display = 'flex';
@@ -520,9 +663,11 @@
             }
 
         } catch (err) {
-            loginError.textContent = err.message;
-            loginError.style.color = '#dc2626';
-            loginError.style.display = 'block';
+            if (err.message !== '密码错误') {
+                loginError.textContent = err.message;
+                loginError.style.color = '#dc2626';
+                loginError.style.display = 'block';
+            }
             if (isAuto) {
                 autoLoginBadge.style.display = 'none';
                 enterBtn.textContent = '进入聊天室';
@@ -583,6 +728,14 @@
             loginError.style.display = 'block';
             return;
         }
+        
+        // 使用 bcyz.js 获取验证状态
+        const isVerified = window.geetest ? window.geetest.getVerified() : false;
+        if (!isVerified) {
+            loginError.textContent = '请先完成验证码验证';
+            loginError.style.display = 'block';
+            return;
+        }
 
         enterBtn.disabled = true;
         loginError.style.color = '#2563eb';
@@ -596,6 +749,51 @@
         finally {
             enterBtn.disabled = false;
         }
+    });
+
+    // ========== 输入框实时验证 ==========
+    usernameInput.addEventListener('input', checkLoginReady);
+    passwordInput.addEventListener('input', checkLoginReady);
+
+    // ========== 退出登录 ==========
+    logoutBtn.addEventListener('click', function() {
+        if (messagesSubscription) messagesSubscription.unsubscribe();
+        if (heartbeatsSubscription) heartbeatsSubscription.unsubscribe();
+        if (bulletinSubscription) bulletinSubscription.unsubscribe();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (pingInterval) clearInterval(pingInterval);
+        if (keepAliveInterval) clearInterval(keepAliveInterval);
+        
+        currentUser = null;
+        loginAttemptCount = 0;
+        
+        // 使用 bcyz.js 重置验证码
+        if (window.geetest) {
+            window.geetest.reset();
+        }
+        
+        captchaResetHint.classList.remove('show');
+        
+        chatPanel.style.display = 'none';
+        loginPanel.style.display = 'block';
+        
+        enterBtn.disabled = true;
+        loginError.style.display = 'none';
+        loginError.textContent = '';
+        
+        passwordInput.value = '';
+        
+        clearLoginData();
+        rememberMeCheckbox.checked = false;
+        
+        messageList.innerHTML = '<div style="text-align:center;color:#b0b8c5;padding:30px 0;font-size:0.85rem;">暂无消息</div>';
+        onlineList.innerHTML = '<li style="color:#b0b8c5;text-align:center;padding:12px 0;font-size:0.8rem;">暂无用户</li>';
+        onlineCountSpan.textContent = '0 在线';
+        
+        autoLoginBadge.style.display = 'none';
+        autoLoginBadge.textContent = '自动登录';
+        
+        console.log('已退出登录');
     });
 
     // ========== 心跳 ==========
@@ -637,9 +835,6 @@
             .subscribe();
     }
 
-    // ============================================================
-    // wz
-    // ============================================================
     function renderOnlineList() {
         if (!onlineUsers.length) {
             onlineList.innerHTML = '<li style="color:#b0b8c5;text-align:center;padding:12px 0;font-size:0.8rem;">暂无用户</li>';
@@ -647,20 +842,15 @@
             return;
         }
 
-        // 稳定排序：按 created_at 升序（先注册的永远在顶部）
-        // 同状态在线优先，但同一状态下按注册时间固定排列
         const sorted = [...onlineUsers].sort((a, b) => {
-            // 1. 在线用户优先
             if (a.online !== b.online) {
                 return b.online ? 1 : -1;
             }
-            // 2. 同状态按 created_at 升序（先注册的永远在上面）
             const aTime = a.created_at || '';
             const bTime = b.created_at || '';
             if (aTime !== bTime) {
                 return aTime < bTime ? -1 : 1;
             }
-            // 3. 相同则按用户名排序（保证绝对稳定）
             return a.username.localeCompare(b.username);
         });
 
