@@ -20,7 +20,10 @@
     <script src="supabase.min.js"></script>
     <script src="https://static.geetest.com/v4/gt4.js"></script>
     <script src="bcyz.js"></script>
+    
+    <!-- ========== 样式表 ========== -->
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="baicaign.css">
 </head>
 <body>
 
@@ -77,8 +80,16 @@
                 <div id="warningMessage" class="warning"></div>
                 <div class="messages" id="messageList"></div>
                 <div class="input-area">
+                    <!-- ====== 新增：图片上传按钮 ====== -->
+                    <button class="btn-upload" id="imageUploadBtn" title="上传图片">📷</button>
+                    <!-- ====== 新增：语音录制按钮 ====== -->
+                    <button class="btn-voice" id="voiceBtn" title="语音消息">🎤</button>
                     <input type="text" id="messageInput" placeholder="输入消息..." maxlength="200">
                     <button class="btn" id="sendBtn">发送</button>
+                </div>
+                <!-- ====== 新增：语音状态提示 ====== -->
+                <div id="voiceStatus" style="display:none;padding:4px 16px;font-size:0.85rem;color:#4a6cf7;background:#eff6ff;border-radius:8px;margin:0 16px 8px 16px;">
+                    🎙️ 录音中... 松开发送
                 </div>
                 <div class="char-count" id="charCount">0/200</div>
             </div>
@@ -118,6 +129,10 @@
     </div>
 </div>
 
+<input type="file" id="imageInput" accept="image/*" style="display:none;">
+
 <script src="baicai.js"></script>
+<script src="baicaign.js"></script>
+
 </body>
 </html>
