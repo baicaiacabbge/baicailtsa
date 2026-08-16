@@ -125,6 +125,28 @@
             .ip-block-box h2 { font-size: 1.1rem; }
         }
 
+        /* ========== 全域维护遮罩层 ========== */
+        .maintenance-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); z-index: 99999; justify-content: center; align-items: center; flex-direction: column; padding: 20px; }
+        .maintenance-overlay.active { display: flex; }
+        .maintenance-box { background: #ffffff; border-radius: 28px; padding: 40px 36px; max-width: 440px; width: 100%; text-align: center; box-shadow: 0 40px 80px rgba(0,0,0,0.2); position: relative; overflow: hidden; }
+        .maintenance-box .maintenance-icon { font-size: 3.6rem; margin-bottom: 12px; display: block; }
+        .maintenance-box h2 { font-size: 1.5rem; color: #1a1a2e; margin-bottom: 6px; }
+        .maintenance-box .sub-title { font-size: 0.9rem; color: #5a5a6e; margin-bottom: 16px; }
+        .maintenance-box .maintenance-reason { background: #fef3e2; border-radius: 12px; padding: 12px 16px; margin: 12px 0; font-size: 0.88rem; color: #92400e; border: 1px solid #fde68a; }
+        .maintenance-box .countdown-timer { font-size: 1.6rem; font-weight: 700; color: #dc2626; font-family: monospace; letter-spacing: 2px; padding: 8px 0; }
+        .maintenance-box .countdown-label { font-size: 0.75rem; color: #8a8a9e; }
+        .maintenance-box .refresh-btn { background: #4a6cf7; color: white; border: none; padding: 10px 32px; border-radius: 40px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s; margin-top: 16px; }
+        .maintenance-box .refresh-btn:hover { background: #3a5cd9; }
+        .maintenance-box .maintenance-footer { font-size: 0.7rem; color: #b0b8c5; margin-top: 14px; }
+        /* 维护进度条 */
+        .maintenance-progress { width: 100%; height: 4px; background: #e8eaed; border-radius: 4px; margin: 12px 0; overflow: hidden; }
+        .maintenance-progress-bar { height: 100%; background: #4a6cf7; border-radius: 4px; width: 100%; transition: width 1s linear; }
+        @media (max-width: 480px) {
+            .maintenance-box { padding: 28px 20px; }
+            .maintenance-box h2 { font-size: 1.2rem; }
+            .maintenance-box .countdown-timer { font-size: 1.3rem; }
+        }
+
         /* 极验验证码容器 */
         #captcha-container {
             margin: 12px 0 16px 0;
@@ -169,6 +191,24 @@
         </div>
         <button class="btn-close-block" onclick="location.reload()">重新检测</button>
         <p class="support-text">如有异议，请联系管理员</p>
+    </div>
+</div>
+
+<div class="maintenance-overlay" id="maintenanceOverlay">
+    <div class="maintenance-box">
+        <span class="maintenance-icon">🔧</span>
+        <h2>系统维护中</h2>
+        <p class="sub-title">聊天室正在进行维护，暂时无法访问</p>
+        <div class="maintenance-reason" id="maintenanceReason">
+            管理员正在进行系统维护，请稍后再来
+        </div>
+        <div class="maintenance-progress">
+            <div class="maintenance-progress-bar" id="maintenanceProgressBar"></div>
+        </div>
+        <div class="countdown-label">预计恢复倒计时</div>
+        <div class="countdown-timer" id="maintenanceCountdown">--:--:--</div>
+        <button class="refresh-btn" onclick="checkMaintenanceStatus()">刷新检测</button>
+        <p class="maintenance-footer">维护期间请耐心等待，感谢您的理解</p>
     </div>
 </div>
 
@@ -281,14 +321,21 @@
     let messagesSubscription = null;
     let heartbeatsSubscription = null;
     let bulletinSubscription = null;
+    let maintenanceSubscription = null;
     let heartbeatInterval = null;
     let pingInterval = null;
     let keepAliveInterval = null;
+    let maintenanceCheckInterval = null;
     let onlineUsers = [];
     let deviceFingerprint = null;
     let isAutoLoggingIn = false;
     let detectedIP = '检测中...';
     let loginAttemptCount = 0;
+
+    // ========== 维护状态 ==========
+    let isMaintenanceActive = false;
+    let maintenanceExpiresAt = null;
+    let maintenanceReason = '管理员正在进行系统维护，请稍后再来';
 
     // DOM 元素
     const loginPanel = document.getElementById('loginPanel');
@@ -319,15 +366,193 @@
     const blockedIpDisplay = document.getElementById('blockedIpDisplay');
     const blockedLocationDisplay = document.getElementById('blockedLocationDisplay');
 
+    // ========== 维护遮罩元素 ==========
+    const maintenanceOverlay = document.getElementById('maintenanceOverlay');
+    const maintenanceCountdown = document.getElementById('maintenanceCountdown');
+    const maintenanceProgressBar = document.getElementById('maintenanceProgressBar');
+    const maintenanceReasonEl = document.getElementById('maintenanceReason');
+    let countdownInterval = null;
+
+    // ========== 检查全域维护状态 ==========
+    async function checkMaintenanceStatus() {
+        try {
+            const { data, error } = await _supabase
+                .from('system_config')
+                .select('value')
+                .eq('key', 'maintenance')
+                .maybeSingle();
+
+            if (error) {
+                // 表不存在，忽略
+                console.log('[维护] system_config 表不存在，跳过维护检查');
+                return false;
+            }
+
+            if (!data) {
+                // 没有配置，默认未开启
+                return false;
+            }
+
+            const config = JSON.parse(data.value);
+            isMaintenanceActive = config.enabled || false;
+            maintenanceExpiresAt = config.expires_at || null;
+            maintenanceReason = config.reason || '管理员正在进行系统维护，请稍后再来';
+
+            if (isMaintenanceActive && maintenanceExpiresAt) {
+                // 检查是否已过期
+                const now = Date.now();
+                const expireTime = new Date(maintenanceExpiresAt).getTime();
+                if (now > expireTime) {
+                    // 已过期，自动关闭
+                    isMaintenanceActive = false;
+                    maintenanceExpiresAt = null;
+                    // 尝试更新配置（可选）
+                    try {
+                        await _supabase
+                            .from('system_config')
+                            .upsert({
+                                key: 'maintenance',
+                                value: JSON.stringify({ enabled: false, expires_at: null, reason: '' }),
+                                updated_at: new Date().toISOString()
+                            });
+                    } catch (e) {}
+                    return false;
+                }
+            }
+
+            if (isMaintenanceActive) {
+                showMaintenanceOverlay();
+                return true;
+            } else {
+                hideMaintenanceOverlay();
+                return false;
+            }
+        } catch (e) {
+            console.warn('[维护] 检查维护状态失败:', e);
+            return false;
+        }
+    }
+
+    // ========== 显示维护遮罩 ==========
+    function showMaintenanceOverlay() {
+        maintenanceOverlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+        
+        // 显示原因
+        if (maintenanceReason) {
+            maintenanceReasonEl.textContent = maintenanceReason;
+        } else {
+            maintenanceReasonEl.textContent = '管理员正在进行系统维护，请稍后再来';
+        }
+        
+        // 开始倒计时
+        startMaintenanceCountdown();
+    }
+
+    // ========== 隐藏维护遮罩 ==========
+    function hideMaintenanceOverlay() {
+        maintenanceOverlay.classList.remove('active');
+        document.body.style.overflow = '';
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+    }
+
+    // ========== 维护倒计时 ==========
+    function startMaintenanceCountdown() {
+        if (countdownInterval) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+        }
+
+        function updateCountdown() {
+            if (!maintenanceExpiresAt) {
+                // 永久维护，显示自定义消息
+                maintenanceCountdown.textContent = '等待管理员恢复';
+                maintenanceProgressBar.style.width = '100%';
+                return;
+            }
+
+            const now = Date.now();
+            const expireTime = new Date(maintenanceExpiresAt).getTime();
+            const diff = expireTime - now;
+
+            if (diff <= 0) {
+                // 已过期，自动关闭
+                maintenanceCountdown.textContent = '维护已结束，正在恢复...';
+                maintenanceProgressBar.style.width = '100%';
+                // 刷新状态
+                setTimeout(() => {
+                    checkMaintenanceStatus();
+                }, 3000);
+                return;
+            }
+
+            // 计算时间
+            const hours = Math.floor(diff / 3600000);
+            const minutes = Math.floor((diff % 3600000) / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            
+            const hh = String(hours).padStart(2, '0');
+            const mm = String(minutes).padStart(2, '0');
+            const ss = String(seconds).padStart(2, '0');
+            maintenanceCountdown.textContent = `${hh}:${mm}:${ss}`;
+
+            // 更新进度条（假设最多24小时）
+            const maxDuration = 24 * 3600000; // 24小时
+            const progress = Math.min(1, diff / maxDuration);
+            const progressPercent = Math.max(0, 100 - (1 - progress) * 100);
+            maintenanceProgressBar.style.width = Math.min(100, progressPercent) + '%';
+        }
+
+        updateCountdown();
+        countdownInterval = setInterval(updateCountdown, 1000);
+    }
+
+    // ========== 定期检查维护状态 ==========
+    function startMaintenanceCheck() {
+        if (maintenanceCheckInterval) {
+            clearInterval(maintenanceCheckInterval);
+        }
+        // 每30秒检查一次
+        maintenanceCheckInterval = setInterval(() => {
+            checkMaintenanceStatus();
+        }, 30000);
+    }
+
+    // ========== 订阅维护状态变化 ==========
+    function subscribeMaintenance() {
+        if (maintenanceSubscription) {
+            maintenanceSubscription.unsubscribe();
+        }
+        maintenanceSubscription = _supabase
+            .channel('maintenance-changes')
+            .on('postgres_changes', 
+                { event: 'UPDATE', schema: 'public', table: 'system_config', filter: 'key=eq.maintenance' },
+                () => {
+                    console.log('[维护] 检测到维护状态变化，重新检查');
+                    checkMaintenanceStatus();
+                }
+            )
+            .on('postgres_changes', 
+                { event: 'INSERT', schema: 'public', table: 'system_config', filter: 'key=eq.maintenance' },
+                () => {
+                    console.log('[维护] 检测到维护配置新增，重新检查');
+                    checkMaintenanceStatus();
+                }
+            )
+            .subscribe();
+    }
+
     // ========== 重置验证码状态 ==========
     function resetCaptchaState(showHint = true) {
-        // 使用 bcyz.js 重置验证码
         if (window.geetest) {
             window.geetest.reset();
         }
         
         if (showHint) {
-            captchaResetHint.textContent = '';
+            captchaResetHint.textContent = '验证码已重置，请重新验证';
             captchaResetHint.classList.add('show');
             setTimeout(() => {
                 captchaResetHint.classList.remove('show');
@@ -454,14 +679,12 @@
                 return;
             }
 
-            // 验证成功回调
             function onSuccess() {
                 console.log('[极验] 验证成功');
                 captchaResetHint.classList.remove('show');
                 checkLoginReady();
             }
 
-            // 验证失败回调
             function onError() {
                 console.log('[极验] 验证出错');
                 loginError.textContent = '验证码验证失败，请重试';
@@ -469,7 +692,6 @@
                 enterBtn.disabled = true;
             }
 
-            // 初始化极验
             window.geetest.init('captcha-container', onSuccess, onError)
                 .then(function(captchaObj) {
                     resolve(captchaObj);
@@ -497,6 +719,20 @@
 
     // ========== 主流程 ==========
     async function initApp() {
+        // 先检查全域维护状态
+        const isMaintenance = await checkMaintenanceStatus();
+        if (isMaintenance) {
+            // 维护中，显示遮罩，不继续加载
+            document.body.style.overflow = 'hidden';
+            // 仍然检查IP，但不显示登录界面
+            await getIPAndLocation();
+            // 启动维护检查
+            startMaintenanceCheck();
+            subscribeMaintenance();
+            return;
+        }
+
+        // 获取IP
         const result = await getIPAndLocation();
         if (!result.isMainland) {
             ipBlockOverlay.classList.add('active');
@@ -514,6 +750,10 @@
         }
         
         checkAutoLogin();
+        
+        // 启动维护检查
+        startMaintenanceCheck();
+        subscribeMaintenance();
     }
 
     // ========== 密码验证 ==========
@@ -568,6 +808,12 @@
 
     // ========== 执行登录 ==========
     async function performLogin(username, password, isAuto = false) {
+        // 登录前再次检查维护状态
+        const isMaintenance = await checkMaintenanceStatus();
+        if (isMaintenance) {
+            throw new Error('系统正在维护中，请稍后再试');
+        }
+
         if (isAuto) {
             isAutoLoggingIn = true;
             autoLoginBadge.style.display = 'inline-block';
@@ -715,6 +961,14 @@
     enterBtn.addEventListener('click', async () => {
         if (isAutoLoggingIn) return;
 
+        // 点击登录时检查维护状态
+        const isMaintenance = await checkMaintenanceStatus();
+        if (isMaintenance) {
+            loginError.textContent = '系统正在维护中，请稍后再试';
+            loginError.style.display = 'block';
+            return;
+        }
+
         const username = usernameInput.value.trim();
         const password = passwordInput.value.trim();
 
@@ -729,7 +983,6 @@
             return;
         }
         
-        // 使用 bcyz.js 获取验证状态
         const isVerified = window.geetest ? window.geetest.getVerified() : false;
         if (!isVerified) {
             loginError.textContent = '请先完成验证码验证';
@@ -760,14 +1013,15 @@
         if (messagesSubscription) messagesSubscription.unsubscribe();
         if (heartbeatsSubscription) heartbeatsSubscription.unsubscribe();
         if (bulletinSubscription) bulletinSubscription.unsubscribe();
+        if (maintenanceSubscription) maintenanceSubscription.unsubscribe();
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         if (pingInterval) clearInterval(pingInterval);
         if (keepAliveInterval) clearInterval(keepAliveInterval);
+        if (maintenanceCheckInterval) clearInterval(maintenanceCheckInterval);
         
         currentUser = null;
         loginAttemptCount = 0;
         
-        // 使用 bcyz.js 重置验证码
         if (window.geetest) {
             window.geetest.reset();
         }
@@ -1030,9 +1284,12 @@
         if (messagesSubscription) messagesSubscription.unsubscribe();
         if (heartbeatsSubscription) heartbeatsSubscription.unsubscribe();
         if (bulletinSubscription) bulletinSubscription.unsubscribe();
+        if (maintenanceSubscription) maintenanceSubscription.unsubscribe();
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         if (pingInterval) clearInterval(pingInterval);
         if (keepAliveInterval) clearInterval(keepAliveInterval);
+        if (maintenanceCheckInterval) clearInterval(maintenanceCheckInterval);
+        if (countdownInterval) clearInterval(countdownInterval);
     });
 
     // ========== 启动 ==========
