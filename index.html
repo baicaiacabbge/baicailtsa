@@ -194,11 +194,12 @@
     </div>
 </div>
 
+<!-- ========== 全域维护遮罩层 ========== -->
 <div class="maintenance-overlay" id="maintenanceOverlay">
     <div class="maintenance-box">
         <span class="maintenance-icon">🔧</span>
         <h2>系统维护中</h2>
-        <p class="sub-title">聊天室正在进行维护，暂时无法访问</p>
+        <p class="sub-title">聊天室正在进行维护升级，暂时无法访问</p>
         <div class="maintenance-reason" id="maintenanceReason">
             管理员正在进行系统维护，请稍后再来
         </div>
@@ -207,7 +208,6 @@
         </div>
         <div class="countdown-label">预计恢复倒计时</div>
         <div class="countdown-timer" id="maintenanceCountdown">--:--:--</div>
-        <button class="refresh-btn" onclick="checkMaintenanceStatus()">刷新检测</button>
         <p class="maintenance-footer">维护期间请耐心等待，感谢您的理解</p>
     </div>
 </div>
@@ -325,7 +325,6 @@
     let heartbeatInterval = null;
     let pingInterval = null;
     let keepAliveInterval = null;
-    let maintenanceCheckInterval = null;
     let onlineUsers = [];
     let deviceFingerprint = null;
     let isAutoLoggingIn = false;
@@ -336,6 +335,7 @@
     let isMaintenanceActive = false;
     let maintenanceExpiresAt = null;
     let maintenanceReason = '管理员正在进行系统维护，请稍后再来';
+    let countdownInterval = null;
 
     // DOM 元素
     const loginPanel = document.getElementById('loginPanel');
@@ -371,9 +371,8 @@
     const maintenanceCountdown = document.getElementById('maintenanceCountdown');
     const maintenanceProgressBar = document.getElementById('maintenanceProgressBar');
     const maintenanceReasonEl = document.getElementById('maintenanceReason');
-    let countdownInterval = null;
 
-    // ========== 检查全域维护状态 ==========
+    // ========== 检查全域维护状态（使用 system_config 表） ==========
     async function checkMaintenanceStatus() {
         try {
             const { data, error } = await _supabase
@@ -383,52 +382,57 @@
                 .maybeSingle();
 
             if (error) {
-                // 表不存在，忽略
-                console.log('[维护] system_config 表不存在，跳过维护检查');
+                console.log('[维护] system_config 表不存在或查询失败，跳过维护检查');
+                hideMaintenanceOverlay();
                 return false;
             }
 
             if (!data) {
-                // 没有配置，默认未开启
+                console.log('[维护] 未找到维护配置，默认未开启');
+                hideMaintenanceOverlay();
                 return false;
             }
 
-            const config = JSON.parse(data.value);
+            const config = data.value;
             isMaintenanceActive = config.enabled || false;
             maintenanceExpiresAt = config.expires_at || null;
             maintenanceReason = config.reason || '管理员正在进行系统维护，请稍后再来';
 
+            // 如果开启但已过期，自动关闭
             if (isMaintenanceActive && maintenanceExpiresAt) {
-                // 检查是否已过期
                 const now = Date.now();
                 const expireTime = new Date(maintenanceExpiresAt).getTime();
                 if (now > expireTime) {
-                    // 已过期，自动关闭
+                    console.log('[维护] 维护已过期，自动关闭');
                     isMaintenanceActive = false;
                     maintenanceExpiresAt = null;
-                    // 尝试更新配置（可选）
+                    // 自动更新配置为关闭
                     try {
                         await _supabase
                             .from('system_config')
                             .upsert({
                                 key: 'maintenance',
-                                value: JSON.stringify({ enabled: false, expires_at: null, reason: '' }),
+                                value: { enabled: false, expires_at: null, reason: '' },
                                 updated_at: new Date().toISOString()
                             });
                     } catch (e) {}
+                    hideMaintenanceOverlay();
                     return false;
                 }
             }
 
             if (isMaintenanceActive) {
+                console.log('[维护] 维护已开启，显示维护页面');
                 showMaintenanceOverlay();
                 return true;
             } else {
+                console.log('[维护] 维护已关闭');
                 hideMaintenanceOverlay();
                 return false;
             }
         } catch (e) {
             console.warn('[维护] 检查维护状态失败:', e);
+            hideMaintenanceOverlay();
             return false;
         }
     }
@@ -437,15 +441,7 @@
     function showMaintenanceOverlay() {
         maintenanceOverlay.classList.add('active');
         document.body.style.overflow = 'hidden';
-        
-        // 显示原因
-        if (maintenanceReason) {
-            maintenanceReasonEl.textContent = maintenanceReason;
-        } else {
-            maintenanceReasonEl.textContent = '管理员正在进行系统维护，请稍后再来';
-        }
-        
-        // 开始倒计时
+        maintenanceReasonEl.textContent = maintenanceReason || '管理员正在进行系统维护，请稍后再来';
         startMaintenanceCountdown();
     }
 
@@ -468,7 +464,6 @@
 
         function updateCountdown() {
             if (!maintenanceExpiresAt) {
-                // 永久维护，显示自定义消息
                 maintenanceCountdown.textContent = '等待管理员恢复';
                 maintenanceProgressBar.style.width = '100%';
                 return;
@@ -479,17 +474,14 @@
             const diff = expireTime - now;
 
             if (diff <= 0) {
-                // 已过期，自动关闭
                 maintenanceCountdown.textContent = '维护已结束，正在恢复...';
                 maintenanceProgressBar.style.width = '100%';
-                // 刷新状态
                 setTimeout(() => {
                     checkMaintenanceStatus();
-                }, 3000);
+                }, 2000);
                 return;
             }
 
-            // 计算时间
             const hours = Math.floor(diff / 3600000);
             const minutes = Math.floor((diff % 3600000) / 60000);
             const seconds = Math.floor((diff % 60000) / 1000);
@@ -499,50 +491,42 @@
             const ss = String(seconds).padStart(2, '0');
             maintenanceCountdown.textContent = `${hh}:${mm}:${ss}`;
 
-            // 更新进度条（假设最多24小时）
-            const maxDuration = 24 * 3600000; // 24小时
+            // 进度条（假设最多24小时）
+            const maxDuration = 24 * 3600000;
             const progress = Math.min(1, diff / maxDuration);
-            const progressPercent = Math.max(0, 100 - (1 - progress) * 100);
-            maintenanceProgressBar.style.width = Math.min(100, progressPercent) + '%';
+            maintenanceProgressBar.style.width = Math.min(100, 100 - (1 - progress) * 100) + '%';
         }
 
         updateCountdown();
         countdownInterval = setInterval(updateCountdown, 1000);
     }
 
-    // ========== 定期检查维护状态 ==========
-    function startMaintenanceCheck() {
-        if (maintenanceCheckInterval) {
-            clearInterval(maintenanceCheckInterval);
-        }
-        // 每30秒检查一次
-        maintenanceCheckInterval = setInterval(() => {
-            checkMaintenanceStatus();
-        }, 30000);
-    }
-
-    // ========== 订阅维护状态变化 ==========
+    // ========== 订阅维护状态变化（实时同步） ==========
     function subscribeMaintenance() {
         if (maintenanceSubscription) {
             maintenanceSubscription.unsubscribe();
+            maintenanceSubscription = null;
         }
+        
         maintenanceSubscription = _supabase
             .channel('maintenance-changes')
             .on('postgres_changes', 
-                { event: 'UPDATE', schema: 'public', table: 'system_config', filter: 'key=eq.maintenance' },
-                () => {
-                    console.log('[维护] 检测到维护状态变化，重新检查');
+                { 
+                    event: '*', 
+                    schema: 'public', 
+                    table: 'system_config',
+                    filter: 'key=eq.maintenance'
+                },
+                (payload) => {
+                    console.log('[维护] 检测到维护状态变化，实时更新', payload);
                     checkMaintenanceStatus();
                 }
             )
-            .on('postgres_changes', 
-                { event: 'INSERT', schema: 'public', table: 'system_config', filter: 'key=eq.maintenance' },
-                () => {
-                    console.log('[维护] 检测到维护配置新增，重新检查');
-                    checkMaintenanceStatus();
+            .subscribe((status) => {
+                if (status === 'SUBSCRIBED') {
+                    console.log('[维护] 已订阅维护状态变化');
                 }
-            )
-            .subscribe();
+            });
     }
 
     // ========== 重置验证码状态 ==========
@@ -721,14 +705,14 @@
     async function initApp() {
         // 先检查全域维护状态
         const isMaintenance = await checkMaintenanceStatus();
+        
+        // 订阅维护状态变化（实时同步）
+        subscribeMaintenance();
+        
         if (isMaintenance) {
             // 维护中，显示遮罩，不继续加载
             document.body.style.overflow = 'hidden';
-            // 仍然检查IP，但不显示登录界面
             await getIPAndLocation();
-            // 启动维护检查
-            startMaintenanceCheck();
-            subscribeMaintenance();
             return;
         }
 
@@ -750,10 +734,6 @@
         }
         
         checkAutoLogin();
-        
-        // 启动维护检查
-        startMaintenanceCheck();
-        subscribeMaintenance();
     }
 
     // ========== 密码验证 ==========
@@ -1017,7 +997,6 @@
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         if (pingInterval) clearInterval(pingInterval);
         if (keepAliveInterval) clearInterval(keepAliveInterval);
-        if (maintenanceCheckInterval) clearInterval(maintenanceCheckInterval);
         
         currentUser = null;
         loginAttemptCount = 0;
@@ -1288,7 +1267,6 @@
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         if (pingInterval) clearInterval(pingInterval);
         if (keepAliveInterval) clearInterval(keepAliveInterval);
-        if (maintenanceCheckInterval) clearInterval(maintenanceCheckInterval);
         if (countdownInterval) clearInterval(countdownInterval);
     });
 
