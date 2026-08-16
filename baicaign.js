@@ -1,10 +1,147 @@
 /* ============================================
-   白菜聊天室 - 新增功能
+   白菜聊天室 - 新增功能（完全独立版）
    图片上传（20MB）、语音消息（60秒）、相对时间
+   不依赖 baicai.js 暴露任何变量
    ============================================ */
 
 (function() {
     'use strict';
+
+    // ============================================
+    // 获取当前用户（完全独立，不依赖 baicai.js）
+    // ============================================
+    function getCurrentUser() {
+        // 方法1：从 userInfo DOM 元素解析
+        var userInfo = document.getElementById('userInfo');
+        if (userInfo && userInfo.textContent && userInfo.textContent !== '加载中...') {
+            var text = userInfo.textContent;
+            var match = text.match(/^(.+?)\s*\((.+?)\)/);
+            if (match) {
+                return {
+                    username: match[1],
+                    ip: match[2] || '0.0.0.0',
+                    id: localStorage.getItem('chat_user_id') || null
+                };
+            }
+        }
+
+        // 方法2：从 localStorage 获取
+        var savedId = localStorage.getItem('chat_user_id');
+        var savedName = localStorage.getItem('chat_username');
+        if (savedId && savedName) {
+            return {
+                id: savedId,
+                username: savedName
+            };
+        }
+
+        // 方法3：从登录面板的输入框获取（用户已输入但未登录时）
+        var usernameInput = document.getElementById('username');
+        if (usernameInput && usernameInput.value && usernameInput.value.trim()) {
+            // 只是临时获取，不视为已登录
+        }
+
+        return null;
+    }
+
+    // ============================================
+    // 获取 Supabase 实例
+    // ============================================
+    function getSupabase() {
+        // 从 window 获取
+        if (window._supabase) return window._supabase;
+        // 从全局变量获取
+        if (typeof _supabase !== 'undefined') return _supabase;
+        return null;
+    }
+
+    // ============================================
+    // 通过用户名查询用户ID（缓存到 localStorage）
+    // ============================================
+    async function fetchUserIdByUsername(username) {
+        if (!username) return null;
+
+        // 先检查缓存
+        var cachedId = localStorage.getItem('chat_user_id');
+        var cachedName = localStorage.getItem('chat_username');
+        if (cachedId && cachedName === username) {
+            return cachedId;
+        }
+
+        var supabase = getSupabase();
+        if (!supabase) return null;
+
+        try {
+            var { data, error } = await supabase
+                .from('users')
+                .select('id')
+                .eq('username', username)
+                .maybeSingle();
+
+            if (error || !data) return null;
+
+            // 缓存到 localStorage
+            localStorage.setItem('chat_user_id', data.id);
+            localStorage.setItem('chat_username', username);
+            return data.id;
+        } catch (err) {
+            console.warn('获取用户ID失败:', err);
+            return null;
+        }
+    }
+
+    // ============================================
+    // 获取当前用户ID（自动从DOM解析并查询）
+    // ============================================
+    async function getCurrentUserId() {
+        // 先从缓存获取
+        var cachedId = localStorage.getItem('chat_user_id');
+        if (cachedId) return cachedId;
+
+        // 从DOM解析用户名
+        var user = getCurrentUser();
+        if (user && user.username) {
+            var id = await fetchUserIdByUsername(user.username);
+            if (id) return id;
+        }
+
+        // 如果 userInfo 显示的是 "用户名 (IP)" 格式
+        var userInfo = document.getElementById('userInfo');
+        if (userInfo && userInfo.textContent && userInfo.textContent !== '加载中...') {
+            var match = userInfo.textContent.match(/^(.+?)\s*\(/);
+            if (match) {
+                var id = await fetchUserIdByUsername(match[1]);
+                if (id) return id;
+            }
+        }
+
+        return null;
+    }
+
+    // ============================================
+    // 等待用户登录完成
+    // ============================================
+    function waitForLogin(callback) {
+        var count = 0;
+        var maxAttempts = 60; // 30秒超时
+
+        var checkInterval = setInterval(function() {
+            count++;
+            var userInfo = document.getElementById('userInfo');
+            var isLoggedIn = userInfo && 
+                            userInfo.textContent && 
+                            userInfo.textContent !== '加载中...' &&
+                            userInfo.style.display !== 'none';
+
+            var panel = document.getElementById('chatPanel');
+            var isPanelVisible = panel && panel.style.display === 'flex';
+
+            if (isLoggedIn || isPanelVisible || count > maxAttempts) {
+                clearInterval(checkInterval);
+                callback(isLoggedIn || isPanelVisible);
+            }
+        }, 500);
+    }
 
     // ============================================
     // 相对时间显示
@@ -37,27 +174,31 @@
         return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
+    // ---------- 显示警告 ----------
+    function showWarning(msg) {
+        var warning = document.getElementById('warningMessage');
+        if (warning) {
+            warning.textContent = msg;
+            warning.style.display = 'block';
+            clearTimeout(warning._timer);
+            warning._timer = setTimeout(function() { warning.style.display = 'none'; }, 3000);
+        } else {
+            alert(msg);
+        }
+    }
+
     // ============================================
     // 图片上传（20MB限制）
     // ============================================
     function initImageUpload() {
         var uploadBtn = document.getElementById('imageUploadBtn');
         var fileInput = document.getElementById('imageInput');
-        var warning = document.getElementById('warningMessage');
-
-        function showWarning(msg) {
-            if (warning) {
-                warning.textContent = msg;
-                warning.style.display = 'block';
-                clearTimeout(warning._timer);
-                warning._timer = setTimeout(function() { warning.style.display = 'none'; }, 3000);
-            }
-        }
 
         if (!uploadBtn || !fileInput) return;
 
         uploadBtn.addEventListener('click', function() {
-            if (!window.currentUser) {
+            var user = getCurrentUser();
+            if (!user || !user.username) {
                 showWarning('请先登录');
                 return;
             }
@@ -142,31 +283,28 @@
 
     // ---------- 上传图片 ----------
     async function uploadImage(file) {
-        var warning = document.getElementById('warningMessage');
-
-        function showWarning(msg) {
-            if (warning) {
-                warning.textContent = msg;
-                warning.style.display = 'block';
-                clearTimeout(warning._timer);
-                warning._timer = setTimeout(function() { warning.style.display = 'none'; }, 3000);
-            }
+        var supabase = getSupabase();
+        if (!supabase) {
+            showWarning('数据库连接失败');
+            return;
         }
 
-        if (!window.currentUser || !window._supabase) {
+        // 获取用户ID
+        var userId = await getCurrentUserId();
+        if (!userId) {
             showWarning('请先登录');
             return;
         }
 
         var uploadBtn = document.getElementById('imageUploadBtn');
         var ext = file.name.split('.').pop() || 'jpg';
-        var fileName = window.currentUser.id + '/' + Date.now() + '_' + Math.random().toString(36).substr(2, 6) + '.' + ext;
+        var fileName = userId + '/' + Date.now() + '_' + Math.random().toString(36).substr(2, 6) + '.' + ext;
 
         try {
             uploadBtn.disabled = true;
             showWarning('图片上传中...');
 
-            var { error } = await window._supabase.storage
+            var { error } = await supabase.storage
                 .from('chat-images')
                 .upload(fileName, file, {
                     cacheControl: '3600',
@@ -175,11 +313,12 @@
 
             if (error) throw error;
 
-            var { data } = window._supabase.storage.from('chat-images').getPublicUrl(fileName);
+            var { data } = supabase.storage.from('chat-images').getPublicUrl(fileName);
             await sendImageMessage(data.publicUrl);
             showWarning('图片发送成功');
 
         } catch (err) {
+            console.error('上传失败:', err);
             showWarning('上传失败：' + err.message);
         } finally {
             uploadBtn.disabled = false;
@@ -188,18 +327,49 @@
 
     // ---------- 发送图片消息 ----------
     async function sendImageMessage(url) {
-        if (!window.currentUser || !window._supabase) return;
+        var supabase = getSupabase();
+        if (!supabase) return;
 
-        var { error } = await window._supabase.from('messages').insert({
-            user_id: window.currentUser.id,
+        var userId = await getCurrentUserId();
+        if (!userId) return;
+
+        var { error } = await supabase.from('messages').insert({
+            user_id: userId,
             content: '![图片](' + url + ')'
         });
 
-        if (!error && window.loadMessages) {
-            await window.loadMessages();
+        if (!error) {
+            // 触发消息刷新
+            if (window.loadMessages) {
+                await window.loadMessages();
+            } else {
+                // 如果 loadMessages 不可用，尝试通过点击事件触发
+                var sendBtn = document.getElementById('sendBtn');
+                if (sendBtn) {
+                    // 发送一条空消息触发刷新？不行，用另一种方式
+                    refreshMessages();
+                }
+            }
             var list = document.getElementById('messageList');
             if (list) list.scrollTop = list.scrollHeight;
         }
+    }
+
+    // ---------- 刷新消息（备用方案） ----------
+    function refreshMessages() {
+        var supabase = getSupabase();
+        if (!supabase) return;
+
+        supabase
+            .from('messages')
+            .select('id, content, created_at, user:users ( id, username )')
+            .order('created_at', { ascending: true })
+            .then(function(result) {
+                if (result.data && window.renderMessages) {
+                    window.renderMessages(result.data);
+                }
+            })
+            .catch(function() {});
     }
 
     // ============================================
@@ -215,16 +385,6 @@
     function initVoiceMessage() {
         var btn = document.getElementById('voiceBtn');
         var status = document.getElementById('voiceStatus');
-        var warning = document.getElementById('warningMessage');
-
-        function showWarning(msg) {
-            if (warning) {
-                warning.textContent = msg;
-                warning.style.display = 'block';
-                clearTimeout(warning._timer);
-                warning._timer = setTimeout(function() { warning.style.display = 'none'; }, 3000);
-            }
-        }
 
         if (!btn) return;
 
@@ -236,7 +396,12 @@
 
         async function start() {
             if (recording) return;
-            if (!window.currentUser) { showWarning('请先登录'); return; }
+
+            var user = getCurrentUser();
+            if (!user || !user.username) {
+                showWarning('请先登录');
+                return;
+            }
 
             try {
                 stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -293,6 +458,7 @@
                 }, 1000);
 
             } catch (err) {
+                console.error('麦克风错误:', err);
                 showWarning('无法访问麦克风');
                 recording = false;
                 btn.classList.remove('recording');
@@ -311,18 +477,14 @@
 
     // ---------- 上传语音 ----------
     async function uploadVoice(blob) {
-        var warning = document.getElementById('warningMessage');
-
-        function showWarning(msg) {
-            if (warning) {
-                warning.textContent = msg;
-                warning.style.display = 'block';
-                clearTimeout(warning._timer);
-                warning._timer = setTimeout(function() { warning.style.display = 'none'; }, 3000);
-            }
+        var supabase = getSupabase();
+        if (!supabase) {
+            showWarning('数据库连接失败');
+            return;
         }
 
-        if (!window.currentUser || !window._supabase) {
+        var userId = await getCurrentUserId();
+        if (!userId) {
             showWarning('请先登录');
             return;
         }
@@ -333,13 +495,13 @@
         }
 
         var btn = document.getElementById('voiceBtn');
-        var fileName = window.currentUser.id + '/' + Date.now() + '_voice.webm';
+        var fileName = userId + '/' + Date.now() + '_voice.webm';
 
         try {
             showWarning('语音上传中...');
             if (btn) btn.disabled = true;
 
-            var { error } = await window._supabase.storage
+            var { error } = await supabase.storage
                 .from('chat-voices')
                 .upload(fileName, blob, {
                     cacheControl: '3600',
@@ -348,11 +510,12 @@
 
             if (error) throw error;
 
-            var { data } = window._supabase.storage.from('chat-voices').getPublicUrl(fileName);
+            var { data } = supabase.storage.from('chat-voices').getPublicUrl(fileName);
             await sendVoiceMessage(data.publicUrl);
             showWarning('语音发送成功');
 
         } catch (err) {
+            console.error('语音上传失败:', err);
             showWarning('语音上传失败：' + err.message);
         } finally {
             if (btn) btn.disabled = false;
@@ -361,15 +524,23 @@
 
     // ---------- 发送语音消息 ----------
     async function sendVoiceMessage(url) {
-        if (!window.currentUser || !window._supabase) return;
+        var supabase = getSupabase();
+        if (!supabase) return;
 
-        var { error } = await window._supabase.from('messages').insert({
-            user_id: window.currentUser.id,
+        var userId = await getCurrentUserId();
+        if (!userId) return;
+
+        var { error } = await supabase.from('messages').insert({
+            user_id: userId,
             content: '[语音](' + url + ')'
         });
 
-        if (!error && window.loadMessages) {
-            await window.loadMessages();
+        if (!error) {
+            if (window.loadMessages) {
+                await window.loadMessages();
+            } else {
+                refreshMessages();
+            }
             var list = document.getElementById('messageList');
             if (list) list.scrollTop = list.scrollHeight;
         }
@@ -499,6 +670,7 @@
     // 扩展消息渲染
     // ============================================
     function extendRenderMessages() {
+        // 保存原有函数，但完全替换
         window.renderMessages = function(messages) {
             renderMessagesWithFeatures(messages);
         };
@@ -513,11 +685,14 @@
             return;
         }
 
+        // 获取当前用户ID（同步方式，从缓存或DOM）
+        var userId = localStorage.getItem('chat_user_id');
+
         var html = messages.map(function(msg) {
             var timeStr = getRelativeTime(msg.created_at);
             var fullTime = new Date(msg.created_at).toLocaleString('zh-CN', { hour12: false });
 
-            var isMine = window.currentUser && msg.user && msg.user.id === window.currentUser.id;
+            var isMine = userId && msg.user && msg.user.id === userId;
             var delBtn = isMine ?
                 '<button class="delete-btn" onclick="window.deleteMessageById && window.deleteMessageById(\'' + msg.id + '\')">删除</button>' :
                 '';
@@ -563,23 +738,72 @@
     }
 
     // ============================================
+    // 监听用户登录（通过观察 DOM 变化）
+    // ============================================
+    function observeLogin() {
+        var userInfo = document.getElementById('userInfo');
+        if (!userInfo) return;
+
+        var observer = new MutationObserver(function() {
+            var text = userInfo.textContent;
+            if (text && text !== '加载中...' && !text.includes('加载中')) {
+                var match = text.match(/^(.+?)\s*\(/);
+                if (match) {
+                    var username = match[1];
+                    // 检查是否已有缓存
+                    if (!localStorage.getItem('chat_user_id')) {
+                        fetchUserIdByUsername(username);
+                    }
+                }
+            }
+        });
+
+        observer.observe(userInfo, {
+            childList: true,
+            characterData: true,
+            subtree: true
+        });
+    }
+
+    // ============================================
     // 初始化
     // ============================================
     function init() {
-        var count = 0;
-        var checkInterval = setInterval(function() {
-            count++;
-            if (window.currentUser || document.getElementById('chatPanel').style.display === 'flex' || count > 20) {
-                clearInterval(checkInterval);
-                initImageUpload();
-                initVoiceMessage();
-                initVoicePlayback();
-                extendRenderMessages();
-                console.log('新增功能已加载');
+        // 先观察登录状态
+        observeLogin();
+
+        // 等待登录完成
+        waitForLogin(function(isLoggedIn) {
+            if (isLoggedIn) {
+                // 获取用户ID
+                var userInfo = document.getElementById('userInfo');
+                if (userInfo && userInfo.textContent) {
+                    var match = userInfo.textContent.match(/^(.+?)\s*\(/);
+                    if (match && !localStorage.getItem('chat_user_id')) {
+                        fetchUserIdByUsername(match[1]);
+                    }
+                }
             }
-        }, 500);
+
+            // 初始化所有功能
+            initImageUpload();
+            initVoiceMessage();
+            initVoicePlayback();
+            extendRenderMessages();
+
+            console.log('✅ 新增功能已加载：图片上传、语音消息、相对时间');
+        });
+
+        // 超时保护（10秒后无论如何都初始化）
+        setTimeout(function() {
+            initImageUpload();
+            initVoiceMessage();
+            initVoicePlayback();
+            extendRenderMessages();
+        }, 10000);
     }
 
+    // 页面完全加载后初始化
     if (document.readyState === 'complete') {
         init();
     } else {
