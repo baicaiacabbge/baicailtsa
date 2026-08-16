@@ -6,7 +6,7 @@
     <title>白菜聊天室</title>
     <link rel="icon" href="baicai.svg" type="image/svg+xml">
 
-    <!-- ========== DNS 预解析 ========== -->
+    <!-- DNS预解析 -->
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://static.geetest.com">
     <link rel="dns-prefetch" href="https://api.ip.sb">
@@ -14,40 +14,30 @@
     <link rel="dns-prefetch" href="https://myip.ipip.net">
     <link rel="dns-prefetch" href="https://whois.pconline.com.cn">
 
-    <!-- ========== 预连接 ========== -->
+    <!-- 预连接 -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://static.geetest.com" crossorigin>
 
-    <!-- ========== 预加载 ========== -->
+    <!-- 预加载 -->
     <link rel="preload" href="style.css" as="style">
 
-    <!-- ========== 样式表 ========== -->
+    <!-- 样式表 -->
     <link rel="stylesheet" href="style.css">
 
     <!-- ============================================================ -->
-    <!-- 依赖加载顺序：baicai.js 依赖以下所有库，必须在其执行前就绪    -->
+    <!-- 依赖库（必须加载，但不会操作 DOM，放在 head 中没问题）       -->
     <!-- ============================================================ -->
-    
-    <!-- Supabase 核心客户端 -->
     <script src="supabase.min.js"></script>
-    <!-- Supabase 业务封装层 -->
     <script src="baicaisupabase.js"></script>
-    <!-- bcrypt 加密库，暴露全局变量 dcodeIO -->
     <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
-    <!-- 浏览器指纹采集，暴露全局变量 FingerprintJS -->
     <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
-    <!-- 极验行为验证 4.0 主脚本 -->
     <script src="https://static.geetest.com/v4/gt4.js"></script>
-    <!-- 极验验证码业务封装 -->
     <script src="bcyz.js"></script>
-    
-    <!-- ========== 主应用逻辑 ========== -->
-    <script src="baicai.js"></script>
 
 </head>
 <body>
 
-    <!-- ========== IP 限制遮罩 ========== -->
+    <!-- ===== IP 限制遮罩 ===== -->
     <div class="ip-block-overlay" id="ipBlockOverlay">
         <div class="ip-block-box">
             <div class="lock-icon">❌️</div>
@@ -63,10 +53,10 @@
         </div>
     </div>
 
-    <!-- ========== 应用容器 ========== -->
+    <!-- ===== 应用容器 ===== -->
     <div class="app-container" id="app">
         
-        <!-- ===== 登录面板 ===== -->
+        <!-- 登录面板 -->
         <div id="loginPanel" class="login-card">
             <span class="auto-login-badge" id="autoLoginBadge" style="display:none;">自动登录</span>
             <h2>白菜聊天室</h2>
@@ -79,7 +69,6 @@
                 <label>密码 (8-12位，含数字/字母/特殊字符)</label>
                 <input type="password" id="password" placeholder="输入密码" maxlength="12">
             </div>
-            <!-- 极验验证码挂载点 -->
             <div id="captcha-container"></div>
             <div class="captcha-reset-hint" id="captchaResetHint"></div>
             <div class="remember-me">
@@ -91,10 +80,9 @@
             <div class="login-footer">已有账号直接登录，新账号自动注册</div>
         </div>
 
-        <!-- ===== 聊天主面板 ===== -->
+        <!-- 聊天主面板 -->
         <div id="chatPanel" style="display: none; width: 100%; flex: 1; display: none; flex-direction: column;">
             <div class="chat-layout">
-                <!-- 消息区 -->
                 <div class="chat-main">
                     <div class="chat-header">
                         <span class="user-badge" id="userInfo">加载中...</span>
@@ -109,7 +97,6 @@
                     <div class="char-count" id="charCount">0/200</div>
                 </div>
 
-                <!-- 在线用户列表 -->
                 <div class="online-sidebar">
                     <div class="online-title">
                         <span> 在线</span>
@@ -123,7 +110,6 @@
                 </div>
             </div>
 
-            <!-- 底部栏 -->
             <div class="footer-bar">
                 <span></span>
                 <span class="school-info">白菜聊天室</span>
@@ -134,7 +120,7 @@
         </div>
     </div>
 
-    <!-- ========== 公告弹窗 ========== -->
+    <!-- ===== 公告弹窗 ===== -->
     <div class="modal" id="bulletinModal">
         <div class="modal-content">
             <h3>公告</h3>
@@ -145,5 +131,6 @@
         </div>
     </div>
 
+    <script src="baicai.js"></script>
 </body>
 </html>
