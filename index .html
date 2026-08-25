@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+    <title>白菜聊天室</title>
+    <link rel="icon" href="baicai.svg" type="image/svg+xml">
+
+    <!-- ========== DNS 预解析 ========== -->
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="https://static.geetest.com">
+
+    <!-- ========== 预连接 ========== -->
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://static.geetest.com" crossorigin>
+
+    <script src="baicaisupabase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
+    <script src="supabase.min.js"></script>
+    <script src="https://static.geetest.com/v4/gt4.js"></script>
+    <script src="bcyz.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="ip-block-overlay" id="ipBlockOverlay">
+    <div class="ip-block-box">
+        <div class="lock-icon">❌️</div>
+        <h2>访问受限</h2>
+        <p>该聊天室仅限<strong>中国大陆地区</strong>用户访问</p>
+        <p style="font-size:0.8rem;color:#8a8a9e;margin-top:2px;">本聊天室仅限中国大陆地区使用，不含港澳台。</p>
+        <div class="ip-info">
+            IP：<span id="blockedIpDisplay">加载中...</span><br>
+            归属地：<span id="blockedLocationDisplay">加载中...</span>
+        </div>
+        <button class="btn-close-block" onclick="location.reload()">重新检测</button>
+        <p class="support-text">如有异议，请联系管理员</p>
+    </div>
+</div>
+
+<div class="app-container" id="app">
+    <!-- 登录卡片 -->
+    <div id="loginPanel" class="login-card">
+        <span class="auto-login-badge" id="autoLoginBadge" style="display:none;">自动登录</span>
+        <h2>白菜聊天室</h2>
+        <div class="ip-badge" id="ipDisplay">IP获取中...</div>
+        <div class="form-group">
+            <label>用户名 (1-6个汉字)</label>
+            <input type="text" id="username" placeholder="输入你的名字" maxlength="6">
+        </div>
+        <div class="form-group">
+            <label>密码 (8-12位，含数字/字母/特殊字符)</label>
+            <input type="password" id="password" placeholder="输入密码" maxlength="12">
+        </div>
+        <!-- 极验验证码 -->
+        <div id="captcha-container"></div>
+        <div class="captcha-reset-hint" id="captchaResetHint"></div>
+        <div class="remember-me">
+            <input type="checkbox" id="rememberMe" checked>
+            <label for="rememberMe">记住我</label>
+        </div>
+        <div id="loginError" class="error"></div>
+        <button class="btn" id="enterBtn" disabled>进入聊天室</button>
+        <div class="login-footer">已有账号直接登录，新账号自动注册</div>
+    </div>
+
+    <!-- 聊天主面板 -->
+    <div id="chatPanel" style="display: none; width: 100%; flex: 1; display: none; flex-direction: column;">
+        <div class="chat-layout">
+            <!-- 聊天主区域 -->
+            <div class="chat-main">
+                <div class="chat-header">
+                    <span class="user-badge" id="userInfo">加载中...</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button class="theme-toggle-btn" id="themeToggleBtn" title="切换暗黑模式">🌙</button>
+                        <button class="logout-btn" id="logoutBtn">退出登录</button>
+                    </div>
+                </div>
+                <div id="warningMessage" class="warning"></div>
+                <div class="messages" id="messageList"></div>
+                <div class="input-area">
+                    <input type="text" id="messageInput" placeholder="输入消息..." maxlength="200">
+                    <button class="btn" id="sendBtn">发送</button>
+                </div>
+                <div class="char-count" id="charCount">0/200</div>
+            </div>
+
+            <!-- 在线列表 -->
+            <div class="online-sidebar">
+                <div class="online-title">
+                    <span> 在线</span>
+                    <span class="count-badge" id="onlineCount">0 在线</span>
+                </div>
+                <div class="online-list-wrap">
+                    <ul class="online-list" id="onlineList">
+                        <li style="color: #b0b8c5; text-align: center; padding: 16px 0; font-size:0.8rem;">加载中...</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bar">
+            <span></span>
+            <span class="school-info">白菜聊天室</span>
+            <div style="display: flex; gap: 8px;">
+                <span class="bulletin-btn" id="viewBulletinBtn">公告</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 公告弹窗 -->
+<div class="modal" id="bulletinModal">
+    <div class="modal-content">
+        <h3>公告</h3>
+        <p id="bulletinContent">加载中...</p>
+        <div class="close-modal">
+            <button id="closeModalBtn">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script src="baicai.js"></script>
+<script src="darkmode.js"></script>
+</body>
+</html>
