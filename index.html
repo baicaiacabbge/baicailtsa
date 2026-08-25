@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -73,7 +72,10 @@
             <div class="chat-main">
                 <div class="chat-header">
                     <span class="user-badge" id="userInfo">加载中...</span>
-                    <button class="logout-btn" id="logoutBtn">退出登录</button>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <button class="theme-toggle-btn" id="themeToggleBtn" title="切换暗黑模式">🌙</button>
+                        <button class="logout-btn" id="logoutBtn">退出登录</button>
+                    </div>
                 </div>
                 <div id="warningMessage" class="warning"></div>
                 <div class="messages" id="messageList"></div>
@@ -120,5 +122,6 @@
 </div>
 
 <script src="baicai.js"></script>
+<script src="darkmode.js"></script>
 </body>
 </html>
