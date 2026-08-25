@@ -7,7 +7,7 @@
 
         AI_API_URL: 'https://api.auth.top/api/aidetect',
         AI_API_KEY: 'cd8b7b5bac0e1e4a',
-        TIMEOUT: 2000,
+        TIMEOUT: 5000,
         AI_TIMEOUT: 30000,
         RISK_THRESHOLD: 55,
 
