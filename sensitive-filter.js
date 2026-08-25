@@ -7,7 +7,7 @@
 
         AI_API_URL: 'https://api.auth.top/api/aidetect',
         AI_API_KEY: 'cd8b7b5bac0e1e4a',
-        TIMEOUT: 5000,
+        TIMEOUT: 2000,
         AI_TIMEOUT: 30000,
         RISK_THRESHOLD: 55,
 
@@ -28,7 +28,6 @@
 
     var isIntercepted = false;
     var behaviorHistory = [];
-    var messageIdCounter = 0;
 
     function getMessageInput() {
         return document.getElementById('messageInput');
@@ -58,7 +57,9 @@
                     errorEl.style.display = 'none';
                 }, 3000);
             }
-        } catch (e) {}
+        } catch (e) {
+
+        }
     }
 
     function whitelistCheck(text) {
@@ -77,36 +78,46 @@
         return null;
     }
 
-    function separatorInjectionCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 4) return null;
+    function entropyCheck(text) {
+        if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
-            var separators = [' ', '\t', ',', '.', ';', ':', '|', '/', '_', '-', '*', '#', '@', '~', '`', '^', '&', '%', '$', '+', '='];
-            var sepCount = 0;
-            var chineseCount = 0;
+            var entropy = 0;
+            var freq = {};
             for (var i = 0; i < text.length; i++) {
                 var char = text[i];
-                if (separators.indexOf(char) !== -1) sepCount++;
-                else if (/[\u4e00-\u9fff]/.test(char)) chineseCount++;
+                freq[char] = (freq[char] || 0) + 1;
             }
-            if (chineseCount > 3 && text.length > 8 && sepCount / text.length > 0.25) {
+            var length = text.length;
+            var keys = Object.keys(freq);
+            for (var j = 0; j < keys.length; j++) {
+                var count = freq[keys[j]];
+                var p = count / length;
+                entropy -= p * Math.log2(p);
+            }
+            var hasBase64 = /[A-Za-z0-9+/=]{20,}/.test(text);
+            var hasHex = /[0-9A-Fa-f]{16,}/.test(text);
+            var score = 0;
+            if (entropy > 4.5) score += 25;
+            if (hasBase64) score += 20;
+            if (hasHex) score += 15;
+            if (score >= 40) {
                 return {
                     safe: false,
-                    keyword: '分隔符注入',
-                    desc: '包含大量分隔符，疑似拆分敏感词',
-                    source: 'separator_inject'
+                    keyword: '信息熵异常',
+                    desc: '熵值 ' + entropy.toFixed(2) + '，疑似编码内容',
+                    source: 'entropy'
                 };
             }
-        } catch (e) {}
+        } catch (e) {
+
+        }
         return null;
     }
 
     function zeroWidthCharCheck(text) {
         if (!text || typeof text !== 'string') return null;
         try {
-            var zeroWidthChars = [
-                '\u200B', '\u200C', '\u200D', '\uFEFF', '\u2060',
-                '\u200E', '\u200F', '\u202A', '\u202B', '\u202C', '\u202D', '\u202E'
-            ];
+            var zeroWidthChars = ['\u200B', '\u200C', '\u200D', '\uFEFF', '\u2060'];
             for (var i = 0; i < zeroWidthChars.length; i++) {
                 if (text.indexOf(zeroWidthChars[i]) !== -1) {
                     return {
@@ -117,130 +128,46 @@
                     };
                 }
             }
-        } catch (e) {}
-        return null;
-    }
+        } catch (e) {
 
-    function pinyinHomophoneCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 3) return null;
-        try {
-            var letterCount = (text.match(/[a-zA-Z]/g) || []).length;
-            var spaceCount = (text.match(/\s/g) || []).length;
-            if (letterCount > 4 && spaceCount > 0 && letterCount / text.length > 0.4) {
-                return {
-                    safe: false,
-                    keyword: '拼音替代',
-                    desc: '包含拼音内容，疑似绕过检测',
-                    source: 'pinyin_homophone'
-                };
-            }
-            var digitCount = (text.match(/\d/g) || []).length;
-            if (digitCount > 2 && digitCount / text.length > 0.3) {
-                return {
-                    safe: false,
-                    keyword: '数字谐音',
-                    desc: '包含数字组合，疑似谐音绕过',
-                    source: 'pinyin_homophone'
-                };
-            }
-            if (/^[bcdfghjklmnpqrstvwxyz]{2,4}$/i.test(text.trim())) {
-                return {
-                    safe: false,
-                    keyword: '拼音首字母',
-                    desc: '拼音首字母缩写，疑似绕过检测',
-                    source: 'pinyin_homophone'
-                };
-            }
-        } catch (e) {}
-        return null;
-    }
-
-    function charObfuscationCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 3) return null;
-        try {
-            if (/[\uFF21-\uFF3A\uFF41-\uFF5A]/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '全角伪装',
-                    desc: '使用全角字母，疑似绕过检测',
-                    source: 'char_obfuscation'
-                };
-            }
-            if (/[\uFF10-\uFF19]/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '全角数字',
-                    desc: '使用全角数字，疑似绕过检测',
-                    source: 'char_obfuscation'
-                };
-            }
-            if (/&#\d{2,5};/.test(text) || /&[a-zA-Z]{2,6};/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: 'HTML实体',
-                    desc: '使用HTML实体编码，疑似绕过检测',
-                    source: 'char_obfuscation'
-                };
-            }
-            if (/&#x[0-9A-Fa-f]{2,4};/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '十六进制实体',
-                    desc: '使用十六进制HTML实体，疑似绕过检测',
-                    source: 'char_obfuscation'
-                };
-            }
-        } catch (e) {}
-        return null;
-    }
-
-    function homoglyphCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 3) return null;
-        try {
-            if (/[\u0400-\u04FF]/.test(text) && /[a-zA-Z]/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '同形字符',
-                    desc: '混合西里尔字母，疑似同形攻击',
-                    source: 'homoglyph'
-                };
-            }
-            if (/[\u0370-\u03FF]/.test(text) && /[a-zA-Z]/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '同形字符',
-                    desc: '混合希腊字母，疑似同形攻击',
-                    source: 'homoglyph'
-                };
-            }
-            if (/[\uFB00-\uFB06]/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: 'Unicode伪装',
-                    desc: '使用Unicode兼容字符，疑似绕过检测',
-                    source: 'homoglyph'
-                };
-            }
-        } catch (e) {}
+        }
         return null;
     }
 
     function reversedTextCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 4) return null;
+        if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
-            var reversed = text.split('').reverse().join('');
-            var commonWords = ['敏感', '政治', '色情', '暴力', '赌博', '毒品', '恐怖', '分裂', '攻击', '反动', '法轮', '邪教'];
-            for (var i = 0; i < commonWords.length; i++) {
-                if (reversed.indexOf(commonWords[i]) !== -1) {
+            var firstChar = text[0];
+            var reversedPunctuation = ['！', '？', '，', '。', '；', '：', '」', '』', '】'];
+            var isReversedStart = false;
+            for (var i = 0; i < reversedPunctuation.length; i++) {
+                if (firstChar === reversedPunctuation[i]) {
+                    isReversedStart = true;
+                    break;
+                }
+            }
+            if (isReversedStart) {
+                var lastChar = text[text.length - 1];
+                var normalPunctuation = ['、', '，', '。', '？', '！', '；', '：'];
+                var isNormalEnd = false;
+                for (var j = 0; j < normalPunctuation.length; j++) {
+                    if (lastChar === normalPunctuation[j]) {
+                        isNormalEnd = true;
+                        break;
+                    }
+                }
+                if (isNormalEnd) {
                     return {
                         safe: false,
                         keyword: '文本反转',
-                        desc: '包含反转文本，疑似绕过检测',
+                        desc: '疑似反转文本绕过检测',
                         source: 'reversed'
                     };
                 }
             }
-        } catch (e) {}
+        } catch (e) {
+
+        }
         return null;
     }
 
@@ -253,97 +180,17 @@
             if (/[\uac00-\ud7af]/.test(text)) scripts.push('韩文');
             if (/[\u0400-\u04ff]/.test(text)) scripts.push('西里尔');
             if (/[\u0600-\u06ff]/.test(text)) scripts.push('阿拉伯文');
-            if (/[\u0370-\u03FF]/.test(text)) scripts.push('希腊文');
-            var nonChinese = scripts.filter(function(s) { return s !== '中文'; });
-            if (nonChinese.length >= 2) {
+            if (scripts.length > 2) {
                 return {
                     safe: false,
                     keyword: '混合文字',
-                    desc: '混合多种罕见文字，疑似绕过检测',
+                    desc: '混合多种文字: ' + scripts.join(', ') + '，疑似混淆',
                     source: 'mixed_script'
                 };
             }
-        } catch (e) {}
-        return null;
-    }
+        } catch (e) {
 
-    function repetitiveCharCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 4) return null;
-        try {
-            if (/(.)\1{7,}/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '重复字符',
-                    desc: '包含大量重复字符，疑似刷屏',
-                    source: 'repetitive'
-                };
-            }
-            if (/(\w+)\1{3,}/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '重复单词',
-                    desc: '包含大量重复单词，疑似刷屏',
-                    source: 'repetitive'
-                };
-            }
-        } catch (e) {}
-        return null;
-    }
-
-    function repetitivePunctuationCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 4) return null;
-        try {
-            if (/([!?.,;:！？。，；：、])\1{6,}/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '重复标点',
-                    desc: '包含大量重复标点，疑似刷屏',
-                    source: 'repetitive_punct'
-                };
-            }
-            var emojiCount = (text.match(/[\u{1F000}-\u{1FFFF}]/gu) || []).length;
-            if (emojiCount > 5) {
-                return {
-                    safe: false,
-                    keyword: 'Emoji刷屏',
-                    desc: '包含大量Emoji，疑似刷屏',
-                    source: 'repetitive_punct'
-                };
-            }
-        } catch (e) {}
-        return null;
-    }
-
-    function excessiveWhitespaceCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 10) return null;
-        try {
-            var newlineCount = (text.match(/\n/g) || []).length;
-            if (newlineCount > 3) {
-                return {
-                    safe: false,
-                    keyword: '换行刷屏',
-                    desc: '包含大量换行符，疑似刷屏',
-                    source: 'excessive_whitespace'
-                };
-            }
-            if (/ {10,}/.test(text)) {
-                return {
-                    safe: false,
-                    keyword: '空格填充',
-                    desc: '包含大量连续空格，疑似绕过检测',
-                    source: 'excessive_whitespace'
-                };
-            }
-            var whitespaceCount = (text.match(/\s/g) || []).length;
-            if (whitespaceCount / text.length > 0.3 && text.length > 20) {
-                return {
-                    safe: false,
-                    keyword: '空白字符过多',
-                    desc: '空白字符占比过高，疑似绕过检测',
-                    source: 'excessive_whitespace'
-                };
-            }
-        } catch (e) {}
+        }
         return null;
     }
 
@@ -379,91 +226,65 @@
                     source: 'behavior'
                 };
             }
-        } catch (e) {}
+        } catch (e) {
+
+        }
         return null;
     }
 
-    function excessiveLengthCheck(text) {
+    function fullwidthCharCheck(text) {
         if (!text || typeof text !== 'string') return null;
         try {
-            if (text.length > 1000) {
-                var chineseCount = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-                var chineseRatio = chineseCount / text.length;
-                if (chineseRatio < 0.2) {
-                    return {
-                        safe: false,
-                        keyword: '超长文本',
-                        desc: '文本长度异常（' + text.length + '字符），疑似攻击',
-                        source: 'excessive_length'
-                    };
-                }
-            }
-        } catch (e) {}
-        return null;
-    }
-
-    function repetitivePatternCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 12) return null;
-        try {
-            for (var len = 2; len <= Math.min(6, Math.floor(text.length / 3)); len++) {
-                var sub = text.substring(0, len);
-                var pattern = sub;
-                var count = 1;
-                for (var i = len; i + len <= text.length; i += len) {
-                    if (text.substring(i, i + len) === sub) {
-                        count++;
-                        pattern += sub;
-                    } else {
-                        break;
-                    }
-                }
-                if (count >= 4 && pattern.length >= 12) {
-                    var isNormalRepeat = /^([\u4e00-\u9fff])\1+$/.test(pattern);
-                    if (!isNormalRepeat) {
-                        return {
-                            safe: false,
-                            keyword: '重复模式',
-                            desc: '包含循环重复内容，疑似自动生成',
-                            source: 'repetitive_pattern'
-                        };
-                    }
-                }
-            }
-        } catch (e) {}
-        return null;
-    }
-
-    function entropyCheck(text) {
-        if (!text || typeof text !== 'string' || text.length < 5) return null;
-        try {
-            var entropy = 0;
-            var freq = {};
-            for (var i = 0; i < text.length; i++) {
-                var char = text[i];
-                freq[char] = (freq[char] || 0) + 1;
-            }
-            var length = text.length;
-            var keys = Object.keys(freq);
-            for (var j = 0; j < keys.length; j++) {
-                var count = freq[keys[j]];
-                var p = count / length;
-                entropy -= p * Math.log2(p);
-            }
-            var hasBase64 = /[A-Za-z0-9+/=]{20,}/.test(text);
-            var hasHex = /[0-9A-Fa-f]{16,}/.test(text);
-            var score = 0;
-            if (entropy > 4.5) score += 25;
-            if (hasBase64) score += 20;
-            if (hasHex) score += 15;
-            if (score >= 40) {
+            if (/[\uFF21-\uFF3A\uFF41-\uFF5A]/.test(text)) {
                 return {
                     safe: false,
-                    keyword: '信息熵异常',
-                    desc: '熵值 ' + entropy.toFixed(2) + '，疑似编码内容',
-                    source: 'entropy'
+                    keyword: '全角字符伪装',
+                    desc: '使用全角英文字母，疑似绕过检测',
+                    source: 'fullwidth'
                 };
             }
-        } catch (e) {}
+        } catch (e) {
+
+        }
+        return null;
+    }
+
+    function htmlEntityCheck(text) {
+        if (!text || typeof text !== 'string') return null;
+        try {
+            if (/&#\d{2,5};/.test(text) || /&[a-zA-Z]{2,6};/.test(text)) {
+                return {
+                    safe: false,
+                    keyword: 'HTML实体编码',
+                    desc: '包含HTML实体编码，疑似绕过检测',
+                    source: 'html_entity'
+                };
+            }
+        } catch (e) {
+
+        }
+        return null;
+    }
+
+    function adversarialCharCheck(text) {
+        if (!text || typeof text !== 'string') return null;
+        try {
+            var reversedPunctuation = ['「', '」', '『', '』', '【', '】'];
+            var count = 0;
+            for (var i = 0; i < reversedPunctuation.length; i++) {
+                if (text.indexOf(reversedPunctuation[i]) !== -1) count++;
+            }
+            if (count > 2) {
+                return {
+                    safe: false,
+                    keyword: '对抗性字符',
+                    desc: '包含大量特殊标点，疑似绕过检测',
+                    source: 'adversarial_char'
+                };
+            }
+        } catch (e) {
+
+        }
         return null;
     }
 
@@ -487,7 +308,7 @@
                 sum += values[k];
             }
             var avgFreq = sum / values.length;
-            if (maxFreq > avgFreq * 6 && text.length > 15) {
+            if (maxFreq > avgFreq * 8 && text.length > 15) {
                 return {
                     safe: false,
                     keyword: '词频异常',
@@ -495,58 +316,133 @@
                     source: 'word_frequency'
                 };
             }
-        } catch (e) {}
+        } catch (e) {
+
+        }
         return null;
     }
 
-    function adversarialCharCheck(text) {
-        if (!text || typeof text !== 'string') return null;
+    // ============ 新增检测 1: Unicode规范化攻击检测 ============
+    function unicodeNormalizationCheck(text) {
+        if (!text || typeof text !== 'string' || text.length < 3) return null;
         try {
-            var chars = ['「', '」', '『', '』', '【', '】', '〈', '〉', '《', '》', '〔', '〕'];
-            var count = 0;
-            for (var i = 0; i < chars.length; i++) {
-                if (text.indexOf(chars[i]) !== -1) count++;
-            }
-            if (count > 2) {
+            // 检测 Unicode 兼容性分解字符（如 ﬁ → fi 组合）
+            var compatibilityChars = /[\uFB00-\uFB06\uFB13-\uFB17\uFDFA\uFDFB]/;
+            if (compatibilityChars.test(text)) {
                 return {
                     safe: false,
-                    keyword: '对抗性字符',
-                    desc: '包含大量特殊标点，疑似绕过检测',
-                    source: 'adversarial_char'
+                    keyword: 'Unicode伪装',
+                    desc: '使用Unicode兼容字符，疑似绕过检测',
+                    source: 'unicode_norm'
+                };
+            }
+            // 检测混杂的 Unicode 同形字符（如 Cyrillic 'а' 代替 Latin 'a'）
+            var homoglyphCount = 0;
+            var homoglyphs = [
+                /[\u0400-\u04FF]/, // Cyrillic
+                /[\u0370-\u03FF]/, // Greek
+                /[\u0100-\u017F]/  // Latin Extended
+            ];
+            for (var i = 0; i < homoglyphs.length; i++) {
+                if (homoglyphs[i].test(text)) homoglyphCount++;
+            }
+            if (homoglyphCount >= 2) {
+                return {
+                    safe: false,
+                    keyword: '同形字符混淆',
+                    desc: '混合多种字母系统，疑似同形攻击',
+                    source: 'unicode_norm'
                 };
             }
         } catch (e) {}
         return null;
     }
 
-    function localFastCheck(text) {
-        var detectors = [
-            separatorInjectionCheck,
-            zeroWidthCharCheck,
-            pinyinHomophoneCheck,
-            charObfuscationCheck,
-            homoglyphCheck,
-            reversedTextCheck,
-            mixedScriptCheck,
-            repetitiveCharCheck,
-            repetitivePunctuationCheck,
-            excessiveWhitespaceCheck,
-            behaviorCheck,
-            excessiveLengthCheck,
-            repetitivePatternCheck,
-            entropyCheck,
-            wordFrequencyCheck,
-            adversarialCharCheck
-        ];
-
-        for (var i = 0; i < detectors.length; i++) {
-            try {
-                var result = detectors[i](text);
-                if (result && result.safe === false) {
-                    return result;
+    // ============ 新增检测 2: 分隔符注入检测 ============
+    function separatorInjectionCheck(text) {
+        if (!text || typeof text !== 'string' || text.length < 5) return null;
+        try {
+            var separators = [' ', '\t', '\n', '\r', ',', '.', ';', ':', '|', '/', '\\', '_', '-', '*', '#', '@', '~', '`', '^', '&', '%', '$', '+', '=', '?', '!'];
+            var sepCount = 0;
+            var alphaCount = 0;
+            for (var i = 0; i < text.length; i++) {
+                var char = text[i];
+                if (separators.indexOf(char) !== -1) {
+                    sepCount++;
+                } else if (/[\u4e00-\u9fff]/.test(char)) {
+                    alphaCount++;
                 }
-            } catch (e) {}
-        }
+            }
+            // 中文文本中分隔符占比 > 25% 且长度 > 10
+            if (text.length > 10 && sepCount / text.length > 0.25 && alphaCount > 3) {
+                return {
+                    safe: false,
+                    keyword: '分隔符注入',
+                    desc: '包含大量分隔符，疑似拆分敏感词',
+                    source: 'separator_inject'
+                };
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    // ============ 新增检测 3: 拼音/谐音检测 ============
+    function pinyinHomophoneCheck(text) {
+        if (!text || typeof text !== 'string' || text.length < 4) return null;
+        try {
+            // 检测拼音模式：连续字母 + 空格 + 连续字母（如 "ni hao"）
+            var pinyinPattern = /[a-zA-Z]{2,}\s+[a-zA-Z]{2,}/;
+            if (pinyinPattern.test(text)) {
+                var letterCount = (text.match(/[a-zA-Z]/g) || []).length;
+                var spaceCount = (text.match(/\s/g) || []).length;
+                if (letterCount > 6 && spaceCount > 0 && letterCount / text.length > 0.4) {
+                    return {
+                        safe: false,
+                        keyword: '拼音谐音',
+                        desc: '包含拼音/谐音内容，疑似绕过检测',
+                        source: 'pinyin_homophone'
+                    };
+                }
+            }
+            // 检测数字谐音（如 "520" = "我爱你", "748" = "去死吧"）
+            var numberSequence = text.match(/\d{3,}/g);
+            if (numberSequence) {
+                for (var i = 0; i < numberSequence.length; i++) {
+                    var num = numberSequence[i];
+                    // 检测含 4、7、8、9 等敏感数字组合
+                    if (/[4-9]/.test(num) && num.length >= 3) {
+                        // 检查数字占比
+                        var digitCount = (text.match(/\d/g) || []).length;
+                        if (digitCount / text.length > 0.3) {
+                            return {
+                                safe: false,
+                                keyword: '数字谐音',
+                                desc: '包含数字谐音组合，疑似绕过检测',
+                                source: 'pinyin_homophone'
+                            };
+                        }
+                    }
+                }
+            }
+            // 检测拼音首字母缩写（如 "sb"、"cnm"）
+            var acronymPattern = /[bcdfghjklmnpqrstvwxyz]{2,}/i;
+            var matches = text.match(acronymPattern);
+            if (matches) {
+                for (var j = 0; j < matches.length; j++) {
+                    if (matches[j].length >= 2 && matches[j].length <= 5) {
+                        var letterRatio = (text.match(/[a-zA-Z]/g) || []).length / text.length;
+                        if (letterRatio > 0.5 && text.length < 20) {
+                            return {
+                                safe: false,
+                                keyword: '拼音首字母',
+                                desc: '包含拼音首字母缩写，疑似绕过检测',
+                                source: 'pinyin_homophone'
+                            };
+                        }
+                    }
+                }
+            }
+        } catch (e) {}
         return null;
     }
 
@@ -586,6 +482,7 @@
         if (!text || typeof text !== 'string') return null;
         try {
             var controller = new AbortController();
+
             var timeoutId = setTimeout(function() {
                 controller.abort();
             }, CONFIG.AI_TIMEOUT);
@@ -600,17 +497,16 @@
             var data = await response.json();
 
             if (data.code === 200 && data.data) {
-                var isViolated = data.data.is_violated === true;
-                var words = data.data.violated_words || [];
-                var category = words.length > 0 ? words[0].category : '';
-                var word = words.length > 0 ? words[0].word : '未知';
-
-                if (isViolated) {
-                    console.log('AI违规分类:', category || '未分类', '| 关键词:', word);
+                if (data.data.is_violated === true) {
+                    var word = data.data.violated_words && data.data.violated_words.length > 0
+                        ? data.data.violated_words[0].word
+                        : '未知';
+                    var category = data.data.violated_words && data.data.violated_words.length > 0
+                        ? data.data.violated_words[0].category
+                        : '';
                     return {
                         safe: false,
                         keyword: word,
-                        category: category,
                         desc: 'AI确认违规' + (category ? ' (' + category + ')' : ''),
                         source: 'ai_confirm',
                         rawData: data
@@ -619,64 +515,91 @@
                     return { safe: true, source: 'ai_confirm' };
                 }
             }
-            console.warn('⚠️ AI API返回异常');
+            console.warn('⚠️ AI API返回异常，回退到第一个API结果');
+
             return { safe: true, source: 'ai_confirm', fallback: true };
         } catch (error) {
-            console.warn('⚠️ AI API不可用或超时');
+
+            console.warn('⚠️ AI API不可用或超时，回退到第一个API结果');
+
             return { safe: true, source: 'ai_confirm', fallback: true };
         }
     }
 
-    function backgroundCheck(text, messageId) {
-        console.log('🔍 后台检测开始:', text);
+    async function checkSensitiveWords(text) {
+        if (!text || typeof text !== 'string' || text.trim().length === 0) {
+            return { safe: true };
+        }
 
-        var apiPromise = apiCheck(text);
-        var aiPromise = aiConfirmCheck(text);
+        var whitelistResult = whitelistCheck(text);
+        if (whitelistResult) return whitelistResult;
 
-        Promise.all([apiPromise, aiPromise])
-            .then(function(results) {
-                var apiResult = results[0];
-                var aiResult = results[1];
+        var fastDetectors = [
+            { name: '零宽字符', fn: zeroWidthCharCheck },
+            { name: '全角字符', fn: fullwidthCharCheck },
+            { name: 'HTML实体', fn: htmlEntityCheck },
+            { name: '文本反转', fn: reversedTextCheck },
+            { name: '对抗字符', fn: adversarialCharCheck },
+            { name: '混合文字', fn: mixedScriptCheck },
+            // 新增3项检测
+            { name: 'Unicode规范化', fn: unicodeNormalizationCheck },
+            { name: '分隔符注入', fn: separatorInjectionCheck },
+            { name: '拼音谐音', fn: pinyinHomophoneCheck }
+        ];
 
-                if (aiResult && aiResult.safe === false) {
-                    var category = aiResult.category || '敏感';
-                    console.log('AI确认违规（' + category + '），撤回消息');
-                    recallMessage(messageId, text, 'AI检测');
-                    return;
+        for (var i = 0; i < fastDetectors.length; i++) {
+            try {
+                var result = fastDetectors[i].fn(text);
+                if (result && result.safe === false) {
+                    console.log('❌ ' + fastDetectors[i].name + ' 检测命中');
+                    return result;
                 }
+            } catch (error) {
 
-                if (apiResult && apiResult.safe === false) {
-                    console.log('API检测到敏感词，但AI未确认，记录日志，不撤回');
-                    return;
+            }
+        }
+
+        var mediumDetectors = [
+            { name: '信息熵', fn: entropyCheck },
+            { name: '词频异常', fn: wordFrequencyCheck },
+            { name: '行为画像', fn: behaviorCheck }
+        ];
+
+        for (var j = 0; j < mediumDetectors.length; j++) {
+            try {
+                var result2 = mediumDetectors[j].fn(text);
+                if (result2 && result2.safe === false) {
+                    console.log('❌ ' + mediumDetectors[j].name + ' 检测命中');
+                    return result2;
                 }
+            } catch (error) {
 
-                console.log('后台检测通过');
-            })
-            .catch(function(e) {
-                console.warn('⚠️ 后台检测出错:', e);
-            });
-    }
+            }
+        }
 
-    function recallMessage(messageId, text, source) {
-        try {
-            var msgElement = document.getElementById(messageId);
-            if (msgElement) {
-                msgElement.style.opacity = '0.3';
-                msgElement.style.textDecoration = 'line-through';
-                msgElement.style.color = '#999';
+        var apiResult = await apiCheck(text);
 
-                var recallBadge = document.createElement('span');
-                recallBadge.textContent = ' [已撤回]';
-                recallBadge.style.color = '#ff4444';
-                recallBadge.style.fontSize = '12px';
-                msgElement.appendChild(recallBadge);
+        if (apiResult && apiResult.safe === false) {
+            console.log('🔍 第一个API检测到敏感词，调用AI二次确认 (超时30秒)...');
+            var aiResult = await aiConfirmCheck(text);
+
+            if (aiResult && aiResult.fallback === true) {
+                console.log('⏱️ AI超时/不可用，采用第一个API结果');
+                return apiResult;
             }
 
-            showWarning('审查系统检测到你发的内容违反法律法规，现已自动撤回');
-            console.log('已撤回消息:', text);
-        } catch (e) {
-            console.warn('撤回消息失败:', e);
+            if (aiResult && aiResult.safe === false) {
+                console.log('❌ AI确认违规，拦截');
+                return aiResult;
+            } else {
+                console.log('✅ AI认为不违规，放行');
+                return { safe: true, source: 'ai_confirm' };
+            }
         }
+
+        if (apiResult) return apiResult;
+
+        return { safe: true };
     }
 
     function interceptSend() {
@@ -706,49 +629,49 @@
             newBtn.disabled = true;
 
             try {
+                var result = await checkSensitiveWords(text);
 
-                var whitelistResult = whitelistCheck(text);
-                if (whitelistResult) {
-                    var enterEvent = new KeyboardEvent('keypress', {
-                        key: 'Enter',
-                        code: 'Enter',
-                        keyCode: 13,
-                        which: 13,
-                        bubbles: true,
-                        cancelable: true
-                    });
-                    newInput.dispatchEvent(enterEvent);
+                if (result && result.safe === false) {
+                    // 本地检测使用通用提示
+                    var localSources = [
+                        'zero_width', 'fullwidth', 'html_entity', 
+                        'reversed', 'adversarial_char', 'mixed_script',
+                        'entropy', 'word_frequency', 'behavior',
+                        'unicode_norm', 'separator_inject', 'pinyin_homophone'
+                    ];
+                    var isLocalDetection = localSources.indexOf(result.source) !== -1;
+
+                    var warningMsg;
+                    if (isLocalDetection) {
+                        warningMsg = '您的内容触发了安全检测，消息已被拦截。如有疑问请联系管理员。';
+                    } else {
+                        var sourceMap = {
+                            'whitelist': '',
+                            'entropy': '信息熵',
+                            'zero_width': '零宽字符',
+                            'reversed': '文本反转',
+                            'mixed_script': '混合文字',
+                            'behavior': '行为异常',
+                            'fullwidth': '全角伪装',
+                            'html_entity': 'HTML编码',
+                            'adversarial_char': '对抗字符',
+                            'word_frequency': '词频异常',
+                            'unicode_norm': 'Unicode伪装',
+                            'separator_inject': '分隔符注入',
+                            'pinyin_homophone': '拼音谐音',
+                            'api': '云端识别',
+                            'ai_confirm': '云端AI识别'
+                        };
+                        var sourceText = sourceMap[result.source] || '';
+                        warningMsg = '您的内容包含敏感词: "' + result.keyword + '"，消息已被拦截';
+                        if (sourceText) {
+                            warningMsg += ' (' + sourceText + ')';
+                        }
+                    }
+                    showWarning(warningMsg);
                     newBtn.disabled = false;
                     return;
                 }
-
-                var localResult = localFastCheck(text);
-                if (localResult && localResult.safe === false) {
-                    var sourceMap = {
-                        'separator_inject': '分隔符注入',
-                        'zero_width': '零宽字符',
-                        'pinyin_homophone': '拼音谐音',
-                        'char_obfuscation': '字符替换',
-                        'homoglyph': '同形字符',
-                        'reversed': '文本反转',
-                        'mixed_script': '混合文字',
-                        'repetitive': '重复内容',
-                        'repetitive_punct': '重复标点',
-                        'excessive_whitespace': '空白字符',
-                        'behavior': '行为异常',
-                        'excessive_length': '超长文本',
-                        'repetitive_pattern': '重复模式',
-                        'entropy': '信息熵',
-                        'word_frequency': '词频异常',
-                        'adversarial_char': '对抗字符'
-                    };
-                    var sourceText = sourceMap[localResult.source] || '';
-                    showWarning('您的内容触发了安全检测（' + sourceText + '），消息已被拦截。');
-                    newBtn.disabled = false;
-                    return;
-                }
-
-                var messageId = 'msg-' + (++messageIdCounter);
 
                 var enterEvent = new KeyboardEvent('keypress', {
                     key: 'Enter',
@@ -761,23 +684,11 @@
                 newInput.dispatchEvent(enterEvent);
 
                 setTimeout(function() {
-                    try {
-                        var messages = document.querySelectorAll('.message-item, .chat-message, [class*="message"]');
-                        if (messages.length > 0) {
-                            var lastMsg = messages[messages.length - 1];
-                            lastMsg.id = messageId;
-                        }
-                    } catch (e) {}
-                }, 50);
-
-                backgroundCheck(text, messageId);
-
-                setTimeout(function() {
                     newBtn.disabled = false;
                 }, 500);
 
             } catch (error) {
-                console.error('发送出错:', error);
+                console.error('检测出错:', error);
                 newBtn.disabled = false;
             }
         }
@@ -795,14 +706,12 @@
         });
 
         isIntercepted = true;
-        console.log('先发后审模式已启用');
-        console.log('重复字符阈值: 连续8次 | 重复标点阈值: 连续7次');
-        console.log('AI超时: 30秒');
+        console.log('智能敏感词检测模块已启用 (15种检测方式，含AI二次确认，超时30秒回退)');
         return true;
     }
 
     window.__sensitiveFilter = {
-        check: function(text) { return localFastCheck(text); },
+        check: checkSensitiveWords,
         config: CONFIG,
         reload: function() {
             isIntercepted = false;
@@ -840,7 +749,9 @@
                         }, 500);
                         return;
                     }
-                } catch (e) {}
+                } catch (e) {
+
+                }
                 if (attempts < maxAttempts) {
                     setTimeout(tryInit, 500);
                 } else {
@@ -854,7 +765,9 @@
                     tryInit();
                     return;
                 }
-            } catch (e) {}
+            } catch (e) {
+
+            }
 
             var observer = new MutationObserver(function() {
                 try {
@@ -863,7 +776,9 @@
                         observer.disconnect();
                         tryInit();
                     }
-                } catch (e) {}
+                } catch (e) {
+
+                }
             });
 
             var target = document.getElementById('chatPanel') || document.body;
