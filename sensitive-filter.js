@@ -8,6 +8,7 @@
         AI_API_URL: 'https://api.auth.top/api/aidetect',
         AI_API_KEY: 'cd8b7b5bac0e1e4a',
         TIMEOUT: 2000,
+        AI_TIMEOUT: 30000,
         RISK_THRESHOLD: 55,
 
         WHITELIST: [
@@ -423,9 +424,10 @@
         if (!text || typeof text !== 'string') return null;
         try {
             var controller = new AbortController();
+
             var timeoutId = setTimeout(function() {
                 controller.abort();
-            }, CONFIG.TIMEOUT);
+            }, CONFIG.AI_TIMEOUT);
             var url = CONFIG.AI_API_URL + '?key=' + CONFIG.AI_API_KEY + '&content=' + encodeURIComponent(text);
             var response = await fetch(url, {
                 signal: controller.signal,
@@ -438,7 +440,6 @@
 
             if (data.code === 200 && data.data) {
                 if (data.data.is_violated === true) {
-
                     var word = data.data.violated_words && data.data.violated_words.length > 0
                         ? data.data.violated_words[0].word
                         : '未知';
@@ -453,17 +454,17 @@
                         rawData: data
                     };
                 } else {
-
                     return { safe: true, source: 'ai_confirm' };
                 }
             }
+            console.warn('⚠️ AI API返回异常，回退到第一个API结果');
 
-            console.warn('⚠️ AI API返回异常，默认放行');
-            return { safe: true, source: 'ai_confirm' };
+            return { safe: true, source: 'ai_confirm', fallback: true };
         } catch (error) {
 
-            console.warn('⚠️ AI API不可用，默认放行');
-            return { safe: true, source: 'ai_confirm' };
+            console.warn('⚠️ AI API不可用或超时，回退到第一个API结果');
+
+            return { safe: true, source: 'ai_confirm', fallback: true };
         }
     }
 
@@ -526,20 +527,25 @@
         }
 
         var apiResult = await apiCheck(text);
+
         if (apiResult && apiResult.safe === false) {
-
-            console.log('🔍 第一个API检测到敏感词，调用AI二次确认...');
+            console.log('🔍 第一个API检测到敏感词，调用AI二次确认 (超时30秒)...');
             var aiResult = await aiConfirmCheck(text);
-            if (aiResult && aiResult.safe === false) {
 
+            if (aiResult && aiResult.fallback === true) {
+                console.log('⏱️ AI超时/不可用，采用第一个API结果');
+                return apiResult;
+            }
+
+            if (aiResult && aiResult.safe === false) {
                 console.log('❌ AI确认违规，拦截');
                 return aiResult;
             } else {
-
                 console.log('✅ AI认为不违规，放行');
                 return { safe: true, source: 'ai_confirm' };
             }
         }
+
         if (apiResult) return apiResult;
 
         return { safe: true };
@@ -588,11 +594,11 @@
                         'fluency': '通顺度',
                         'adversarial_char': '对抗字符',
                         'word_frequency': '词频异常',
-                        'api': '云端检测',
-                        'ai_confirm': 'AI复核'
+                        'api': '云端识别',
+                        'ai_confirm': 'AI识别'
                     };
                     var sourceText = sourceMap[result.source] || '';
-                    var warningMsg = '⚠️ 包含敏感词: "' + result.keyword + '"，消息已被拦截';
+                    var warningMsg = '您的内容包含敏感词: "' + result.keyword + '"，消息已被拦截';
                     if (sourceText) {
                         warningMsg += ' (' + sourceText + ')';
                     }
@@ -634,7 +640,7 @@
         });
 
         isIntercepted = true;
-        console.log('✅ 智能敏感词检测模块已启用 (14种检测方式，含AI二次确认)');
+        console.log('✅ 智能敏感词检测模块已启用 (14种检测方式，含AI二次确认，超时30秒回退)');
         return true;
     }
 
