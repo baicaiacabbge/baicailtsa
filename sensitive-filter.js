@@ -1,48 +1,15 @@
-/**
- * 白菜聊天室 - 智能敏感词检测模块
- * 多层级静默检测：白名单 → 10+种本地高级检测 → API检测 → AI二次确认
- * 检测到敏感词 → 拒绝发送 → 显示提示
- * 全程无"检测中..."提示，静默进行
- */
-
-// ===== 声明 baicai 变量（必须在这一行） =====
-var baicai = "baicaiJS";
-
-// ============================================================
-// 🛡️ 校验 baicai 变量（最先执行）
-// ============================================================
 (function() {
     'use strict';
 
-    // 检查 window 是否存在
-    if (typeof window === 'undefined') {
-        console.error('[智能检测] 非浏览器环境，无法加载');
-        return;
-    }
-
-    // 校验 baicai 变量
-    if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-        console.error('%c========================================', 'color: #ff0000; font-size: 16px; font-weight: bold;');
-        console.error('%c  智能敏感词检测加载失败：baicai 变量校验未通过', 'color: #ff0000; font-size: 14px;');
-        console.error('%c  请确保文件顶部有：var baicai = "baicaiJS";', 'color: #ff6600; font-size: 14px;');
-        console.error('%c========================================', 'color: #ff0000; font-size: 16px; font-weight: bold;');
-        return; // 阻止后续代码执行
-    }
-
-    console.log('[智能检测] ✅ baicai 变量校验通过');
-
-    // ============================================================
-    // 配置
-    // ============================================================
     var CONFIG = {
-        // 第一个API：敏感词检测
+
         API_URL: 'https://v.api.aa1.cn/api/api-mgc/index.php',
-        // 第二个API：AI二次确认（防止误判）
+
         AI_API_URL: 'https://api.auth.top/api/aidetect',
         AI_API_KEY: 'cd8b7b5bac0e1e4a',
         TIMEOUT: 2000,
         RISK_THRESHOLD: 55,
-        // 白名单：直接放行（长度≤3且全在白名单中）
+
         WHITELIST: [
             '妈', '爸', '娘', '爹', '爷', '奶', '哥', '姐', '弟', '妹',
             '叔', '伯', '婶', '姨', '舅', '姑', '姥', '婆', '公',
@@ -58,15 +25,8 @@ var baicai = "baicaiJS";
         ]
     };
 
-    // ============================================================
-    // 状态
-    // ============================================================
     var isIntercepted = false;
     var behaviorHistory = [];
-
-    // ============================================================
-    // 工具函数
-    // ============================================================
 
     function getMessageInput() {
         return document.getElementById('messageInput');
@@ -97,19 +57,11 @@ var baicai = "baicaiJS";
                 }, 3000);
             }
         } catch (e) {
-            // 静默失败
+
         }
     }
 
-    // ============================================================
-    // 检测1: 白名单检测
-    // ============================================================
     function whitelistCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string') return null;
         var trimmed = text.trim();
         if (trimmed.length === 0) return null;
@@ -125,15 +77,7 @@ var baicai = "baicaiJS";
         return null;
     }
 
-    // ============================================================
-    // 检测2: 信息熵检测
-    // ============================================================
     function entropyCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
             var entropy = 0;
@@ -164,20 +108,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测3: 零宽字符/不可见字符检测
-    // ============================================================
     function zeroWidthCharCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string') return null;
         try {
             var zeroWidthChars = ['\u200B', '\u200C', '\u200D', '\uFEFF', '\u2060'];
@@ -192,20 +128,12 @@ var baicai = "baicaiJS";
                 }
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测4: 文本反转/镜像检测
-    // ============================================================
     function reversedTextCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
             var firstChar = text[0];
@@ -237,20 +165,12 @@ var baicai = "baicaiJS";
                 }
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测5: 混合文字检测（中英日韩等混合）
-    // ============================================================
     function mixedScriptCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string' || text.length < 4) return null;
         try {
             var scripts = [];
@@ -268,20 +188,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测6: 重复字符/刷屏检测
-    // ============================================================
     function repetitiveCharCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string' || text.length < 4) return null;
         try {
             if (/(.)\1{5,}/.test(text)) {
@@ -301,20 +213,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测7: 用户行为画像检测（5秒内10条）
-    // ============================================================
     function behaviorCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string') return null;
         try {
             var now = Date.now();
@@ -347,20 +251,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测8: 全角字符伪装检测
-    // ============================================================
     function fullwidthCharCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string') return null;
         try {
             if (/[\uFF21-\uFF3A\uFF41-\uFF5A]/.test(text)) {
@@ -372,20 +268,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测9: HTML实体编码检测
-    // ============================================================
     function htmlEntityCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string') return null;
         try {
             if (/&#\d{2,5};/.test(text) || /&[a-zA-Z]{2,6};/.test(text)) {
@@ -397,20 +285,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测10: 句子通顺度检测（N-gram简化版）
-    // ============================================================
     function fluencyCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
             var commonBigrams = [
@@ -446,20 +326,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测11: 对抗性特殊字符检测
-    // ============================================================
     function adversarialCharCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string') return null;
         try {
             var reversedPunctuation = ['「', '」', '『', '』', '【', '】'];
@@ -476,20 +348,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测12: 词频异常检测
-    // ============================================================
     function wordFrequencyCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string' || text.length < 10) return null;
         try {
             var freq = {};
@@ -518,20 +382,12 @@ var baicai = "baicaiJS";
                 };
             }
         } catch (e) {
-            // 静默跳过
+
         }
         return null;
     }
 
-    // ============================================================
-    // 检测13: 第一个API检测（敏感词检测）
-    // ============================================================
     async function apiCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string') return null;
         try {
             var controller = new AbortController();
@@ -563,15 +419,7 @@ var baicai = "baicaiJS";
         }
     }
 
-    // ============================================================
-    // 检测14: 第二个API（AI二次确认，防止误判）
-    // ============================================================
     async function aiConfirmCheck(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            return null;
-        }
-
         if (!text || typeof text !== 'string') return null;
         try {
             var controller = new AbortController();
@@ -587,14 +435,12 @@ var baicai = "baicaiJS";
             clearTimeout(timeoutId);
             if (!response.ok) throw new Error('AI API请求失败: ' + response.status);
             var data = await response.json();
-            
-            // 解析AI返回结果
-            // 返回格式: { code: 200, msg: "检测成功", data: { is_violated: true/false, ... } }
+
             if (data.code === 200 && data.data) {
                 if (data.data.is_violated === true) {
-                    // AI确认违规
-                    var word = data.data.violated_words && data.data.violated_words.length > 0 
-                        ? data.data.violated_words[0].word 
+
+                    var word = data.data.violated_words && data.data.violated_words.length > 0
+                        ? data.data.violated_words[0].word
                         : '未知';
                     var category = data.data.violated_words && data.data.violated_words.length > 0
                         ? data.data.violated_words[0].category
@@ -607,39 +453,28 @@ var baicai = "baicaiJS";
                         rawData: data
                     };
                 } else {
-                    // AI认为不违规 → 放行
+
                     return { safe: true, source: 'ai_confirm' };
                 }
             }
-            // AI API返回异常，默认放行（避免误判）
+
             console.warn('⚠️ AI API返回异常，默认放行');
             return { safe: true, source: 'ai_confirm' };
         } catch (error) {
-            // AI API不可用，默认放行（避免误判）
+
             console.warn('⚠️ AI API不可用，默认放行');
             return { safe: true, source: 'ai_confirm' };
         }
     }
 
-    // ============================================================
-    // 主检测函数（智能路由）
-    // ============================================================
     async function checkSensitiveWords(text) {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            console.warn('[智能检测] 检测被拒绝：baicai 变量无效');
-            return { safe: true, apiError: true };
-        }
-
         if (!text || typeof text !== 'string' || text.trim().length === 0) {
             return { safe: true };
         }
 
-        // ---- 第一层：白名单（最快） ----
         var whitelistResult = whitelistCheck(text);
         if (whitelistResult) return whitelistResult;
 
-        // ---- 第二层：快速本地检测（按性能排序） ----
         var fastDetectors = [
             { name: '零宽字符', fn: zeroWidthCharCheck },
             { name: '全角字符', fn: fullwidthCharCheck },
@@ -658,11 +493,10 @@ var baicai = "baicaiJS";
                     return result;
                 }
             } catch (error) {
-                // 静默跳过
+
             }
         }
 
-        // ---- 第三层：中等开销检测 ----
         var mediumDetectors = [
             { name: '信息熵', fn: entropyCheck },
             { name: '词频异常', fn: wordFrequencyCheck },
@@ -677,11 +511,10 @@ var baicai = "baicaiJS";
                     return result2;
                 }
             } catch (error) {
-                // 静默跳过
+
             }
         }
 
-        // ---- 第四层：较重开销检测 ----
         try {
             var fluencyResult = fluencyCheck(text);
             if (fluencyResult && fluencyResult.safe === false) {
@@ -689,41 +522,30 @@ var baicai = "baicaiJS";
                 return fluencyResult;
             }
         } catch (error) {
-            // 静默跳过
+
         }
 
-        // ---- 第五层：第一个API检测（敏感词检测） ----
         var apiResult = await apiCheck(text);
         if (apiResult && apiResult.safe === false) {
-            // 第一个API检测到敏感词 → 调用AI二次确认
+
             console.log('🔍 第一个API检测到敏感词，调用AI二次确认...');
             var aiResult = await aiConfirmCheck(text);
             if (aiResult && aiResult.safe === false) {
-                // AI确认违规 → 拦截
+
                 console.log('❌ AI确认违规，拦截');
                 return aiResult;
             } else {
-                // AI认为不违规 → 放行
+
                 console.log('✅ AI认为不违规，放行');
                 return { safe: true, source: 'ai_confirm' };
             }
         }
         if (apiResult) return apiResult;
 
-        // ---- 默认放行 ----
         return { safe: true };
     }
 
-    // ============================================================
-    // 拦截发送逻辑
-    // ============================================================
     function interceptSend() {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            console.warn('[智能检测] 拦截被拒绝：baicai 变量无效');
-            return false;
-        }
-
         if (isIntercepted) return true;
 
         var sendBtn = getSendButton();
@@ -738,13 +560,6 @@ var baicai = "baicaiJS";
         var newInput = getMessageInput();
 
         async function handleSend(e) {
-            // 校验（防止被绕过）
-            if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-                console.warn('[智能检测] 发送被拒绝：baicai 变量无效');
-                showWarning('⚠️ 系统校验失败，请刷新页面');
-                return;
-            }
-
             if (e) {
                 e.preventDefault();
                 e.stopPropagation();
@@ -823,25 +638,14 @@ var baicai = "baicaiJS";
         return true;
     }
 
-    // ============================================================
-    // 暴露API
-    // ============================================================
     window.__sensitiveFilter = {
         check: checkSensitiveWords,
         config: CONFIG,
         reload: function() {
-            if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-                console.warn('[智能检测] reload 被拒绝：baicai 变量无效');
-                return;
-            }
             isIntercepted = false;
             interceptSend();
         },
         addWhitelist: function(words) {
-            if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-                console.warn('[智能检测] addWhitelist 被拒绝：baicai 变量无效');
-                return;
-            }
             if (Array.isArray(words)) {
                 for (var i = 0; i < words.length; i++) {
                     CONFIG.WHITELIST.push(words[i]);
@@ -851,16 +655,7 @@ var baicai = "baicaiJS";
         }
     };
 
-    // ============================================================
-    // 初始化
-    // ============================================================
     function init() {
-        // 校验（防止被绕过）
-        if (typeof window.baicai === 'undefined' || window.baicai !== 'baicaiJS') {
-            console.error('[智能检测] 初始化被拒绝：baicai 变量无效');
-            return;
-        }
-
         try {
             var attempts = 0;
             var maxAttempts = 30;
@@ -883,7 +678,7 @@ var baicai = "baicaiJS";
                         return;
                     }
                 } catch (e) {
-                    // 忽略
+
                 }
                 if (attempts < maxAttempts) {
                     setTimeout(tryInit, 500);
@@ -899,7 +694,7 @@ var baicai = "baicaiJS";
                     return;
                 }
             } catch (e) {
-                // 忽略
+
             }
 
             var observer = new MutationObserver(function() {
@@ -910,7 +705,7 @@ var baicai = "baicaiJS";
                         tryInit();
                     }
                 } catch (e) {
-                    // 忽略
+
                 }
             });
 
