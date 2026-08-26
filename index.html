@@ -75,6 +75,19 @@
                     <button class="logout-btn" id="logoutBtn">退出登录</button>
                 </div>
                 <div id="warningMessage" class="warning"></div>
+
+                <!-- 词库加载进度 -->
+                <div id="wordsetLoading" style="display:none; background: linear-gradient(90deg, #1a1a2e, #16213e); color: #ffd700; padding: 8px 16px; font-size: 13px; text-align: center; border-bottom: 1px solid #2a2a4a;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap;">
+                        <span>敏感词库加载中</span>
+                        <span id="wordsetProgressText">0%</span>
+                        <div style="width: 200px; height: 6px; background: #2a2a4a; border-radius: 3px; overflow: hidden;">
+                            <div id="wordsetProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #ffd700, #ff6b6b); border-radius: 3px; transition: width 0.3s ease;"></div>
+                        </div>
+                        <span id="wordsetCount" style="color: #8a8a9e; font-size: 12px;">0/12</span>
+                    </div>
+                </div>
+
                 <div class="messages" id="messageList"></div>
                 <div class="input-area">
                     <input type="text" id="messageInput" placeholder="输入消息..." maxlength="200">
