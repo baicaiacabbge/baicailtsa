@@ -638,6 +638,7 @@
             clearTimeout(timeoutId);
             if (!response.ok) throw new Error('AI API请求失败: ' + response.status);
             var data = await response.json();
+
             if (data.code === 200 && data.data) {
                 if (data.data.is_violated === true) {
                     var word = data.data.violated_words && data.data.violated_words.length > 0
@@ -649,6 +650,7 @@
                     return {
                         safe: false,
                         keyword: word,
+                        category: category,
                         desc: 'AI确认违规' + (category ? ' (' + category + ')' : ''),
                         source: 'ai_confirm',
                         rawData: data
@@ -665,7 +667,7 @@
         }
     }
 
-    // ==================== 拦截发送（全部直接拦截） ====================
+    // ==================== 拦截发送 ====================
 
     function interceptSend() {
         if (isIntercepted) return true;
@@ -719,28 +721,50 @@
                 // ===== 第3层：本地敏感词库 =====
                 var wordsetResult = checkLocalWordSet(text);
                 if (wordsetResult && wordsetResult.safe === false) {
-                    showWarning('您的内容包含敏感词，消息已被拦截。');
+                    showWarning('您的内容包含敏感词，消息已被云端库拦截。');
                     newBtn.disabled = false;
                     return;
                 }
 
                 // ===== 第4层：云端API检测（同步） =====
                 var apiResult = await apiCheck(text);
-                if (apiResult && apiResult.safe === false) {
+
+                // API 未命中 → 直接发送
+                if (!apiResult || apiResult.safe !== false) {
+                    var enterEvent = new KeyboardEvent('keypress', {
+                        key: 'Enter',
+                        code: 'Enter',
+                        keyCode: 13,
+                        which: 13,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    newInput.dispatchEvent(enterEvent);
+                    newBtn.disabled = false;
+                    return;
+                }
+
+                // ===== API 命中 → 调用AI二次确认 =====
+                console.log('⚠️ API检测到敏感词，调用AI二次确认（30秒）...');
+                var aiResult = await aiConfirmCheck(text);
+
+                // AI超时或不可用 → 采用API结果，直接拦截
+                if (aiResult && aiResult.fallback === true) {
+                    console.log('⏱️ AI超时/不可用，采用API判定结果，拦截');
                     showWarning('您的内容包含敏感词: "' + apiResult.keyword + '"，消息已被拦截 (云端识别)');
                     newBtn.disabled = false;
                     return;
                 }
 
-                // ===== 第5层：云端AI检测（同步） =====
-                var aiResult = await aiConfirmCheck(text);
+                // AI确认违规 → 拦截
                 if (aiResult && aiResult.safe === false) {
-                    showWarning('您的内容包含敏感词: "' + aiResult.keyword + '"，消息已被拦截 (AI识别)');
+                    showWarning('您的内容包含敏感词: "' + aiResult.keyword + '"，消息已被拦截 (云端AI识别)');
                     newBtn.disabled = false;
                     return;
                 }
 
-                // ===== 全部通过，发送消息 =====
+                // AI不确认 → 放行
+                console.log('✅ AI未确认违规，放行');
                 var enterEvent = new KeyboardEvent('keypress', {
                     key: 'Enter',
                     code: 'Enter',
@@ -757,6 +781,13 @@
 
             } catch (error) {
                 console.error('发送出错:', error);
+                // AI调用异常，采用API结果拦截
+                if (apiResult && apiResult.safe === false) {
+                    console.warn('⚠️ AI调用异常，采用API判定结果，拦截');
+                    showWarning('您的内容包含敏感词: "' + apiResult.keyword + '"，消息已被拦截 (云端识别)');
+                } else {
+                    showWarning('检测服务异常，请稍后重试。');
+                }
                 newBtn.disabled = false;
             }
         }
@@ -774,7 +805,7 @@
         });
 
         isIntercepted = true;
-        console.log('✅ 全部直接拦截模式已启用（白名单 + 12项本地检测 + 本地词库 + API1 + AI）');
+        console.log('✅ API命中→AI确认模式（AI超时/不可用时API兜底拦截）已启用');
         console.log('🚀 本地词库代理加速已启用，共 ' + PROXY_LIST.length + ' 个代理源');
         return true;
     }
