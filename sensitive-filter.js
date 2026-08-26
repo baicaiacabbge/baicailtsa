@@ -576,7 +576,7 @@
             mixedScriptCheck,
             separatorInjectionCheck,
             entropyCheck,
-            wordFrequencyCheck,
+            //wordFrequencyCheck,
             pinyinHomophoneCheck,
             behaviorCheck,
             unicodeNormalizationCheck
