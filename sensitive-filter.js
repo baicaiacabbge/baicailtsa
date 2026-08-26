@@ -432,6 +432,7 @@
     }
 
     function wordFrequencyCheck(text) {
+        return null;
         if (!text || typeof text !== 'string' || text.length < 10) return null;
         try {
             var freq = {};
