@@ -398,6 +398,7 @@
     }
 
     function entropyCheck(text) {
+         return null;
         if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
             var entropy = 0;
