@@ -164,48 +164,30 @@
 
     // ==================== 核心改动：智能检测本地词库 ====================
     function checkLocalWordSet(text) {
-        if (!localWordSet) {
-            return null;
-        }
-        var words = localWordSet.values();
-        for (var word of words) {
-            // 1. 单字永远不拦截（避免"一、了、的"误报）
-            if (word.length <= 1) continue;
-            // 2. 纯数字/纯字母短词不拦截
-            if (/^[0-9]+$/.test(word) && word.length < 3) continue;
-            if (/^[a-zA-Z]+$/.test(word) && word.length < 2) continue;
-
-            // 3. 双字词智能匹配：必须完整匹配，不能是其他词的一部分
-            if (word.length === 2) {
-                if (text.indexOf(word) !== -1) {
-                    var index = text.indexOf(word);
-                    var before = text[index - 1] || '';
-                    var after = text[index + 2] || '';
-                    // 前后不是汉字（或不存在）才算独立词
-                    if (!/[\u4e00-\u9fff]/.test(before) && !/[\u4e00-\u9fff]/.test(after)) {
-                        return {
-                            safe: false,
-                            keyword: word,
-                            desc: '本地敏感词库命中',
-                            source: 'local_wordset'
-                        };
-                    }
-                }
-                continue;
-            }
-
-            // 4. 3个字及以上直接检测
-            if (text.indexOf(word) !== -1) {
-                return {
-                    safe: false,
-                    keyword: word,
-                    desc: '本地敏感词库命中',
-                    source: 'local_wordset'
-                };
-            }
-        }
+    if (!localWordSet) {
         return null;
     }
+    var words = localWordSet.values();
+    for (var word of words) {
+        // 单字不拦截（避免"一、了、的"误报）
+        if (word.length <= 1) continue;
+        // 纯数字短词不拦截（避免"11"误报）
+        if (/^[0-9]+$/.test(word) && word.length < 3) continue;
+        // 纯字母短词：只跳过1个字母，检测2个字母及以上（让"SB"能被检测）
+        if (/^[a-zA-Z]+$/.test(word) && word.length < 2) continue;
+
+        // 只要包含敏感词就拦截（不分独立不独立）
+        if (text.indexOf(word) !== -1) {
+            return {
+                safe: false,
+                keyword: word,
+                desc: '本地敏感词库命中',
+                source: 'local_wordset'
+            };
+        }
+    }
+    return null;
+}
 
     function preloadLocalWordSet() {
         loadLocalWordSetWithRetry().catch(function(e) {});
