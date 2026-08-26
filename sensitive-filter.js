@@ -169,14 +169,14 @@
     }
     var words = localWordSet.values();
     for (var word of words) {
-        // 单字不拦截（避免"一、了、的"误报）
+        // 只跳过单字（避免"一、了、的"误报）
         if (word.length <= 1) continue;
         // 纯数字短词不拦截（避免"11"误报）
         if (/^[0-9]+$/.test(word) && word.length < 3) continue;
         // 纯字母短词：只跳过1个字母，检测2个字母及以上（让"SB"能被检测）
         if (/^[a-zA-Z]+$/.test(word) && word.length < 2) continue;
 
-        // 只要包含敏感词就拦截（不分独立不独立）
+        // 只要包含就拦截
         if (text.indexOf(word) !== -1) {
             return {
                 safe: false,
