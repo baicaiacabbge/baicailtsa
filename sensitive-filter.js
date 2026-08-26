@@ -8,7 +8,7 @@
         TIMEOUT: 5000,
         AI_TIMEOUT: 30000,
 
-        // ⭐ 本地敏感词库 Raw 链接（改成你自己的）
+        // ⭐ 本地敏感词库 Raw 链接
         LOCAL_WORDS_URL: 'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/word.txt',
 
         WHITELIST: [
@@ -162,20 +162,15 @@
         });
     }
 
-    // ========== 检测文本是否包含本地敏感词（智能过滤短词） ==========
     function checkLocalWordSet(text) {
         if (!localWordSet) {
             return null;
         }
         var words = localWordSet.values();
         for (var word of words) {
-            // 跳过太短的词（≤2个字符），避免误报
             if (word.length <= 2) continue;
-            // 如果是纯数字，要求至少3位才匹配
             if (/^[0-9]+$/.test(word) && word.length < 3) continue;
-            // 如果是纯字母，要求至少3位才匹配
             if (/^[a-zA-Z]+$/.test(word) && word.length < 3) continue;
-
             if (text.indexOf(word) !== -1) {
                 return {
                     safe: false,
@@ -192,10 +187,9 @@
         loadLocalWordSetWithRetry().catch(function(e) {});
     }
 
-    // ========== 原有函数 ==========
+    // ========== 核心变量 ==========
     var isIntercepted = false;
     var behaviorHistory = [];
-    var messageIdCounter = 0;
 
     function getMessageInput() {
         return document.getElementById('messageInput');
@@ -247,7 +241,6 @@
 
     // ==================== 本地12项检测 ====================
 
-    // 1. 零宽字符检测
     function zeroWidthCharCheck(text) {
         if (!text || typeof text !== 'string') return null;
         try {
@@ -266,7 +259,6 @@
         return null;
     }
 
-    // 2. 全角字符检测
     function fullwidthCharCheck(text) {
         if (!text || typeof text !== 'string') return null;
         try {
@@ -282,7 +274,6 @@
         return null;
     }
 
-    // 3. HTML实体检测
     function htmlEntityCheck(text) {
         if (!text || typeof text !== 'string') return null;
         try {
@@ -298,7 +289,6 @@
         return null;
     }
 
-    // 4. 文本反转检测
     function reversedTextCheck(text) {
         if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
@@ -334,7 +324,6 @@
         return null;
     }
 
-    // 5. 对抗字符检测
     function adversarialCharCheck(text) {
         if (!text || typeof text !== 'string') return null;
         try {
@@ -355,7 +344,6 @@
         return null;
     }
 
-    // 6. 混合文字检测
     function mixedScriptCheck(text) {
         if (!text || typeof text !== 'string' || text.length < 4) return null;
         try {
@@ -377,7 +365,6 @@
         return null;
     }
 
-    // 7. 分隔符注入检测
     function separatorInjectionCheck(text) {
         if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
@@ -404,7 +391,6 @@
         return null;
     }
 
-    // 8. 信息熵检测
     function entropyCheck(text) {
         if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
@@ -439,7 +425,6 @@
         return null;
     }
 
-    // 9. 词频异常检测
     function wordFrequencyCheck(text) {
         if (!text || typeof text !== 'string' || text.length < 10) return null;
         try {
@@ -472,7 +457,6 @@
         return null;
     }
 
-    // 10. 拼音/谐音检测
     function pinyinHomophoneCheck(text) {
         if (!text || typeof text !== 'string' || text.length < 4) return null;
         try {
@@ -507,7 +491,6 @@
         return null;
     }
 
-    // 11. 行为检测（频率+重复内容）
     function behaviorCheck(text) {
         if (!text || typeof text !== 'string') return null;
         try {
@@ -544,7 +527,6 @@
         return null;
     }
 
-    // 12. Unicode规范化检测
     function unicodeNormalizationCheck(text) {
         if (!text || typeof text !== 'string' || text.length < 3) return null;
         try {
@@ -578,8 +560,6 @@
         return null;
     }
 
-    // ==================== 本地快速检测 ====================
-
     function localFastCheck(text) {
         var detectors = [
             zeroWidthCharCheck,
@@ -606,7 +586,7 @@
         return null;
     }
 
-    // ==================== API 检测 ====================
+    // ==================== 云端 API 检测 ====================
 
     async function apiCheck(text) {
         if (!text || typeof text !== 'string') return null;
@@ -685,60 +665,7 @@
         }
     }
 
-    // ==================== 后台检测 ====================
-
-    function backgroundCheck(text, messageId) {
-        console.log('🔍 后台检测开始:', text);
-
-        var localResult = checkLocalWordSet(text);
-        if (localResult && localResult.safe === false) {
-            console.log('❌ 本地词库命中，撤回消息');
-            recallMessage(messageId, text, '本地词库');
-            return;
-        }
-
-        apiCheck(text).then(function(apiResult) {
-            if (apiResult && apiResult.safe === false) {
-                console.log('❌ API1命中，撤回消息');
-                recallMessage(messageId, text, 'API1');
-                return;
-            }
-            return aiConfirmCheck(text).then(function(aiResult) {
-                if (aiResult && aiResult.safe === false) {
-                    console.log('❌ AI命中，撤回消息');
-                    recallMessage(messageId, text, 'AI');
-                    return;
-                }
-                console.log('✅ 后台检测全部通过');
-            });
-        }).catch(function(e) {
-            console.warn('⚠️ 后台检测出错:', e);
-        });
-    }
-
-    // ==================== 撤回消息 ====================
-
-    function recallMessage(messageId, text, source) {
-        try {
-            var msgElement = document.getElementById(messageId);
-            if (msgElement) {
-                msgElement.style.opacity = '0.3';
-                msgElement.style.textDecoration = 'line-through';
-                msgElement.style.color = '#999';
-                var badge = document.createElement('span');
-                badge.textContent = ' [已撤回]';
-                badge.style.color = '#ff4444';
-                badge.style.fontSize = '12px';
-                msgElement.appendChild(badge);
-            }
-            showWarning('系统检测到您的消息含有不当内容，已自动撤回。如有疑问请联系管理员。');
-            console.log('🗑️ 已撤回消息:', text, '来源:', source);
-        } catch (e) {
-            console.warn('撤回消息失败:', e);
-        }
-    }
-
-    // ==================== 拦截发送 ====================
+    // ==================== 拦截发送（全部直接拦截） ====================
 
     function interceptSend() {
         if (isIntercepted) return true;
@@ -768,14 +695,15 @@
                 // ===== 第1层：白名单 =====
                 var whitelistResult = whitelistCheck(text);
                 if (whitelistResult) {
-                    newInput.dispatchEvent(new KeyboardEvent('keypress', {
+                    var enterEvent = new KeyboardEvent('keypress', {
                         key: 'Enter',
                         code: 'Enter',
                         keyCode: 13,
                         which: 13,
                         bubbles: true,
                         cancelable: true
-                    }));
+                    });
+                    newInput.dispatchEvent(enterEvent);
                     newBtn.disabled = false;
                     return;
                 }
@@ -796,8 +724,23 @@
                     return;
                 }
 
-                // ===== 立即发送 =====
-                var messageId = 'msg-' + (++messageIdCounter);
+                // ===== 第4层：云端API检测（同步） =====
+                var apiResult = await apiCheck(text);
+                if (apiResult && apiResult.safe === false) {
+                    showWarning('您的内容包含敏感词: "' + apiResult.keyword + '"，消息已被拦截 (云端识别)');
+                    newBtn.disabled = false;
+                    return;
+                }
+
+                // ===== 第5层：云端AI检测（同步） =====
+                var aiResult = await aiConfirmCheck(text);
+                if (aiResult && aiResult.safe === false) {
+                    showWarning('您的内容包含敏感词: "' + aiResult.keyword + '"，消息已被拦截 (AI识别)');
+                    newBtn.disabled = false;
+                    return;
+                }
+
+                // ===== 全部通过，发送消息 =====
                 var enterEvent = new KeyboardEvent('keypress', {
                     key: 'Enter',
                     code: 'Enter',
@@ -807,19 +750,6 @@
                     cancelable: true
                 });
                 newInput.dispatchEvent(enterEvent);
-
-                setTimeout(function() {
-                    try {
-                        var messages = document.querySelectorAll('.message-item, .chat-message, [class*="message"]');
-                        if (messages.length > 0) {
-                            var lastMsg = messages[messages.length - 1];
-                            lastMsg.id = messageId;
-                        }
-                    } catch (e) {}
-                }, 100);
-
-                // ===== 第4层：云端检测（后台异步） =====
-                backgroundCheck(text, messageId);
 
                 setTimeout(function() {
                     newBtn.disabled = false;
@@ -832,6 +762,7 @@
         }
 
         newBtn.addEventListener('click', handleSend);
+
         newInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -843,7 +774,7 @@
         });
 
         isIntercepted = true;
-        console.log('✅ 完整检测已启用（白名单 + 12项本地检测 + 本地词库 + API1 + AI）');
+        console.log('✅ 全部直接拦截模式已启用（白名单 + 12项本地检测 + 本地词库 + API1 + AI）');
         console.log('🚀 本地词库代理加速已启用，共 ' + PROXY_LIST.length + ' 个代理源');
         return true;
     }
