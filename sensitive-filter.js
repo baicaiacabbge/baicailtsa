@@ -722,7 +722,7 @@
                 // ===== 第2层：本地12项行为检测 =====
                 var localResult = localFastCheck(text);
                 if (localResult && localResult.safe === false) {
-                    showWarning('您的内容触发了安全检测，消息已被拦截');
+                    showWarning('您的信息触发了本地安全检测，消息已被拦截');
                     newBtn.disabled = false;
                     return;
                 }
@@ -730,7 +730,7 @@
                 // ===== 第3层：本地敏感词库 =====
                 var wordsetResult = checkLocalWordSet(text);
                 if (wordsetResult && wordsetResult.safe === false) {
-                    showWarning('您的内容包含敏感词，消息已被本地库识别拦截。');
+                    showWarning('您的信息包含敏感内容，消息已被本地库识别拦截。');
                     newBtn.disabled = false;
                     return;
                 }
@@ -760,14 +760,14 @@
                 // AI超时或不可用 → 采用API结果，直接拦截
                 if (aiResult && aiResult.fallback === true) {
                     console.log('⏱️ AI超时/不可用，采用API判定结果，拦截');
-                    showWarning('您的内容包含敏感词: "' + apiResult.keyword + '"，消息已被云端库识别拦截');
+                    showWarning('您的信息包含敏感内容: "' + apiResult.keyword + '"，消息已被云端库识别拦截');
                     newBtn.disabled = false;
                     return;
                 }
 
                 // AI确认违规 → 拦截
                 if (aiResult && aiResult.safe === false) {
-                    showWarning('您的内容包含敏感词: "' + aiResult.keyword + '"，消息已被云端AI识别拦截');
+                    showWarning('您的信息包含敏感内容: "' + aiResult.keyword + '"，消息已被云端AI识别拦截');
                     newBtn.disabled = false;
                     return;
                 }
@@ -793,7 +793,7 @@
                 // AI调用异常，采用API结果拦截
                 if (apiResult && apiResult.safe === false) {
                     console.warn('⚠️ AI调用异常，采用API判定结果，拦截');
-                    showWarning('您的内容包含敏感词: "' + apiResult.keyword + '"，消息已被云端库识别拦截 ');
+                    showWarning('您的信息包含敏感内容: "' + apiResult.keyword + '"，消息已被云端库识别拦截 ');
                 } else {
                     showWarning('检测服务异常，请稍后重试。');
                 }
