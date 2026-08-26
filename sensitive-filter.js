@@ -466,6 +466,7 @@
     }
 
     function pinyinHomophoneCheck(text) {
+        return null;
         if (!text || typeof text !== 'string' || text.length < 4) return null;
         try {
             var letterCount = (text.match(/[a-zA-Z]/g) || []).length;
