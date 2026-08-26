@@ -173,7 +173,7 @@
             if (word.length <= 1) continue;
             // 2. 纯数字/纯字母短词不拦截
             if (/^[0-9]+$/.test(word) && word.length < 3) continue;
-            if (/^[a-zA-Z]+$/.test(word) && word.length < 3) continue;
+            if (/^[a-zA-Z]+$/.test(word) && word.length < 2) continue;
 
             // 3. 双字词智能匹配：必须完整匹配，不能是其他词的一部分
             if (word.length === 2) {
