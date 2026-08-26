@@ -8,8 +8,24 @@
         TIMEOUT: 5000,
         AI_TIMEOUT: 30000,
 
-        // ⭐ 本地敏感词库 Raw 链接
-        LOCAL_WORDS_URL: 'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/word.txt',
+        // ⭐ 本地敏感词库列表（多个文件）
+        LOCAL_WORDS_LIST: [
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/其他词库.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/反动词库.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/广告类型.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/政治类型.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/新思想启蒙.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/暴恐词库.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/民生词库.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/涉枪涉爆.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/网易前端过滤敏感词库.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/色情类型.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/色情词库.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/补充词库.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/贪腐词库.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/零时-Tencent.txt',
+            'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/非法网址.txt'
+        ],
 
         WHITELIST: [
             '妈', '爸', '娘', '爹', '爷', '奶', '哥', '姐', '弟', '妹',
@@ -43,10 +59,11 @@
         return proxy + rawUrl;
     }
 
-    // ========== 本地敏感词库 ==========
+    // ========== 多文件词库加载 ==========
     var localWordSet = null;
     var localWordsLoaded = false;
     var isLoading = false;
+    var loadProgress = 0;
 
     function loadLocalWordSet() {
         if (localWordsLoaded) {
@@ -66,100 +83,65 @@
         }
 
         isLoading = true;
-        var rawUrl = CONFIG.LOCAL_WORDS_URL;
-        var url = getProxiedUrl(rawUrl);
-        console.log('📥 正在加载本地敏感词库（代理' + (PROXY_INDEX + 1) + '）:', url);
+        var allWords = [];
+        var fileUrls = CONFIG.LOCAL_WORDS_LIST;
+        var totalFiles = fileUrls.length;
+        var loadedFiles = 0;
 
-        return fetch(url, { cache: 'force-cache' })
-            .then(function(response) {
-                if (!response.ok) {
-                    throw new Error('加载失败: ' + response.status);
-                }
-                return response.text();
-            })
-            .then(function(text) {
-                var words = text.split(/\r?\n/)
-                    .map(function(line) { return line.trim(); })
-                    .filter(function(word) {
-                        return word.length > 0 && !word.startsWith('#');
-                    });
-                localWordSet = new Set(words);
-                localWordsLoaded = true;
-                isLoading = false;
-                PROXY_INDEX = 0;
-                console.log('✅ 本地敏感词库加载完成，共 ' + localWordSet.size + ' 个词');
-            })
-            .catch(function(error) {
-                console.warn('⚠️ 代理' + (PROXY_INDEX + 1) + '加载失败:', error.message);
-                PROXY_INDEX++;
-                if (PROXY_INDEX < PROXY_LIST.length) {
-                    console.log('🔄 切换到下一个代理...');
-                    isLoading = false;
-                    return loadLocalWordSet();
-                } else {
-                    console.log('🔄 所有代理失败，尝试原始地址...');
-                    PROXY_INDEX = 0;
-                    isLoading = false;
-                    return loadLocalWordSetFallback();
-                }
-            })
-            .catch(function(finalError) {
-                console.warn('⚠️ 所有代理及原始地址均失败，跳过本地词库:', finalError.message);
-                isLoading = false;
-                localWordSet = null;
-            });
-    }
+        console.log('📥 正在加载 ' + totalFiles + ' 个本地敏感词库...');
 
-    function loadLocalWordSetFallback() {
-        if (localWordsLoaded) {
-            return Promise.resolve();
-        }
-        if (isLoading) {
-            return new Promise(function(resolve) {
-                var checkLoaded = function() {
-                    if (localWordsLoaded) {
-                        resolve();
-                    } else {
-                        setTimeout(checkLoaded, 200);
+        function loadSingleFile(url) {
+            var proxiedUrl = getProxiedUrl(url);
+            return fetch(proxiedUrl, { cache: 'force-cache' })
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('加载失败: ' + response.status);
                     }
-                };
-                checkLoaded();
-            });
+                    return response.text();
+                })
+                .then(function(text) {
+                    var words = text.split(/\r?\n/)
+                        .map(function(line) { return line.trim(); })
+                        .filter(function(word) {
+                            return word.length > 0 && !word.startsWith('#');
+                        });
+                    loadedFiles++;
+                    console.log('📄 已加载词库 (' + loadedFiles + '/' + totalFiles + '): ' + url.split('/').pop() + '，共 ' + words.length + ' 个词');
+                    return words;
+                })
+                .catch(function(error) {
+                    console.warn('⚠️ 词库加载失败，跳过:', url.split('/').pop(), error.message);
+                    loadedFiles++;
+                    return [];
+                });
         }
 
-        isLoading = true;
-        var url = CONFIG.LOCAL_WORDS_URL;
-        console.log('📥 正在加载本地敏感词库（原始地址）:', url);
+        // 并行加载所有词库
+        var promises = fileUrls.map(function(url) {
+            return loadSingleFile(url);
+        });
 
-        return fetch(url, { cache: 'force-cache' })
-            .then(function(response) {
-                if (!response.ok) {
-                    throw new Error('加载失败: ' + response.status);
+        return Promise.all(promises)
+            .then(function(results) {
+                // 合并所有词库
+                for (var i = 0; i < results.length; i++) {
+                    for (var j = 0; j < results[i].length; j++) {
+                        allWords.push(results[i][j]);
+                    }
                 }
-                return response.text();
-            })
-            .then(function(text) {
-                var words = text.split(/\r?\n/)
-                    .map(function(line) { return line.trim(); })
-                    .filter(function(word) {
-                        return word.length > 0 && !word.startsWith('#');
-                    });
-                localWordSet = new Set(words);
+                // 去重
+                var uniqueWords = new Set(allWords);
+                localWordSet = uniqueWords;
                 localWordsLoaded = true;
                 isLoading = false;
-                console.log('✅ 本地敏感词库加载完成（原始地址），共 ' + localWordSet.size + ' 个词');
+                console.log('✅ 本地敏感词库全部加载完成，共 ' + localWordSet.size + ' 个词（去重后）');
+                return localWordSet;
             })
             .catch(function(error) {
-                console.warn('⚠️ 原始地址加载失败，跳过本地词库:', error.message);
+                console.warn('⚠️ 词库加载过程中出现错误:', error.message);
                 isLoading = false;
                 localWordSet = null;
             });
-    }
-
-    function loadLocalWordSetWithRetry() {
-        return loadLocalWordSet().catch(function() {
-            return loadLocalWordSetFallback();
-        });
     }
 
     function checkLocalWordSet(text) {
@@ -184,7 +166,7 @@
     }
 
     function preloadLocalWordSet() {
-        loadLocalWordSetWithRetry().catch(function(e) {});
+        loadLocalWordSet().catch(function(e) {});
     }
 
     // ========== 核心变量 ==========
@@ -713,7 +695,7 @@
                 // ===== 第2层：本地12项行为检测 =====
                 var localResult = localFastCheck(text);
                 if (localResult && localResult.safe === false) {
-                    showWarning('您的内容触发了安全检测，消息已被拦截。如有疑问请联系管理员。');
+                    showWarning('您的内容触发了安全检测，消息已被拦截');
                     newBtn.disabled = false;
                     return;
                 }
@@ -721,7 +703,7 @@
                 // ===== 第3层：本地敏感词库 =====
                 var wordsetResult = checkLocalWordSet(text);
                 if (wordsetResult && wordsetResult.safe === false) {
-                    showWarning('您的内容包含敏感词，消息已被云端库拦截。');
+                    showWarning('您的内容包含敏感词，消息已被本地库拦截。');
                     newBtn.disabled = false;
                     return;
                 }
@@ -758,7 +740,7 @@
 
                 // AI确认违规 → 拦截
                 if (aiResult && aiResult.safe === false) {
-                    showWarning('您的内容包含敏感词: "' + aiResult.keyword + '"，消息已被拦截 (云端AI识别)');
+                    showWarning('您的内容包含敏感词: "' + aiResult.keyword + '"，消息已被云端AI拦截 ');
                     newBtn.disabled = false;
                     return;
                 }
@@ -784,7 +766,7 @@
                 // AI调用异常，采用API结果拦截
                 if (apiResult && apiResult.safe === false) {
                     console.warn('⚠️ AI调用异常，采用API判定结果，拦截');
-                    showWarning('您的内容包含敏感词: "' + apiResult.keyword + '"，消息已被拦截 (云端识别)');
+                    showWarning('您的内容包含敏感词: "' + apiResult.keyword + '"，消息已被云端库拦截');
                 } else {
                     showWarning('检测服务异常，请稍后重试。');
                 }
@@ -807,6 +789,7 @@
         isIntercepted = true;
         console.log('✅ API命中→AI确认模式（AI超时/不可用时API兜底拦截）已启用');
         console.log('🚀 本地词库代理加速已启用，共 ' + PROXY_LIST.length + ' 个代理源');
+        console.log('📚 已配置 ' + CONFIG.LOCAL_WORDS_LIST.length + ' 个词库文件');
         return true;
     }
 
@@ -834,7 +817,7 @@
         reloadWordSet: function() {
             localWordsLoaded = false;
             localWordSet = null;
-            loadLocalWordSetWithRetry();
+            loadLocalWordSet();
         }
     };
 
