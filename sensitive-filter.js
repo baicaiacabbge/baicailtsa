@@ -598,7 +598,7 @@
             if (!isSafe) {
                 return {
                     safe: false,
-                    keyword: '本地AI检测',
+                    keyword: 'AI检测',
                     desc: 'Qwen3Guard 检测到违规内容',
                     source: 'qwen3guard'
                 };
@@ -756,7 +756,7 @@
                 if (qwenLoaded) {
                     qwenResult = await qwenCheck(text);
                     if (qwenResult && qwenResult.safe === false) {
-                        showWarning('您的信息包含违规内容，已被QVENAI识别拦截。');
+                        showWarning('您的信息包含违规内容，已被BCQVM识别拦截。');
                         newBtn.disabled = false;
                         return;
                     }
