@@ -29,6 +29,7 @@
     var PROXY_LIST = [
         'https://gitproxy.click/',
         'https://ghproxy.net/',
+
         'https://gh.api.99988866.xyz/',
         'https://github.akams.cn/'
     ];
@@ -570,7 +571,7 @@
         }
     }
 
-    // ==================== Qwen3Guard 本地 AI 检测 ====================
+    // ==================== Qwen3Guard 本地 AI 检测（已修改） ====================
 
     async function qwenCheck(text) {
         if (!qwenLoaded || !qwenModel) {
@@ -593,9 +594,22 @@
             var result = output[0]?.generated_text || '';
             var lower = result.toLowerCase();
 
-            var isSafe = lower.includes('safe') && !lower.includes('unsafe');
+            // ✅ 只拦截这些高危类别
+            var unsafeKeywords = ['violent', 'sexual', 'self-harm', 'illegal', 'hate'];
+            var isUnsafe = false;
+            for (var i = 0; i < unsafeKeywords.length; i++) {
+                if (lower.includes(unsafeKeywords[i])) {
+                    isUnsafe = true;
+                    break;
+                }
+            }
 
-            if (!isSafe) {
+            // ✅ 政治敏感（political）不拦截
+            if (lower.includes('political')) {
+                isUnsafe = false;
+            }
+
+            if (isUnsafe) {
                 return {
                     safe: false,
                     keyword: 'AI检测',
