@@ -8,7 +8,6 @@
         TIMEOUT: 5000,
         AI_TIMEOUT: 15000,
 
-        // ⭐ 本地敏感词库 Raw 链接
         LOCAL_WORDS_URL: 'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/word.txt',
 
         WHITELIST: [
@@ -162,32 +161,26 @@
         });
     }
 
-    // ==================== 核心改动：智能检测本地词库 ====================
     function checkLocalWordSet(text) {
-    if (!localWordSet) {
+        if (!localWordSet) {
+            return null;
+        }
+        var words = localWordSet.values();
+        for (var word of words) {
+            if (word.length <= 1) continue;
+            if (/^[0-9]+$/.test(word) && word.length < 3) continue;
+            if (/^[a-zA-Z]+$/.test(word) && word.length < 2) continue;
+            if (text.indexOf(word) !== -1) {
+                return {
+                    safe: false,
+                    keyword: word,
+                    desc: '本地敏感词库命中',
+                    source: 'local_wordset'
+                };
+            }
+        }
         return null;
     }
-    var words = localWordSet.values();
-    for (var word of words) {
-        // 只跳过单字（避免"一、了、的"误报）
-        if (word.length <= 1) continue;
-        // 纯数字短词不拦截（避免"11"误报）
-        if (/^[0-9]+$/.test(word) && word.length < 3) continue;
-        // 纯字母短词：只跳过1个字母，检测2个字母及以上（让"SB"能被检测）
-        if (/^[a-zA-Z]+$/.test(word) && word.length < 2) continue;
-
-        // 只要包含就拦截
-        if (text.indexOf(word) !== -1) {
-            return {
-                safe: false,
-                keyword: word,
-                desc: '本地敏感词库命中',
-                source: 'local_wordset'
-            };
-        }
-    }
-    return null;
-}
 
     function preloadLocalWordSet() {
         loadLocalWordSetWithRetry().catch(function(e) {});
@@ -196,6 +189,11 @@
     // ========== 核心变量 ==========
     var isIntercepted = false;
     var behaviorHistory = [];
+    var messageIdCounter = 0;
+    var pendingMessages = {};
+    var qwenModel = null;
+    var qwenLoading = false;
+    var qwenLoaded = false;
 
     function getMessageInput() {
         return document.getElementById('messageInput');
@@ -245,7 +243,7 @@
         return null;
     }
 
-    // ==================== 本地12项检测 ====================
+    // ==================== 本地11项检测 ====================
 
     function zeroWidthCharCheck(text) {
         if (!text || typeof text !== 'string') return null;
@@ -398,105 +396,14 @@
     }
 
     function entropyCheck(text) {
-         return null;
-        if (!text || typeof text !== 'string' || text.length < 5) return null;
-        try {
-            var entropy = 0;
-            var freq = {};
-            for (var i = 0; i < text.length; i++) {
-                var char = text[i];
-                freq[char] = (freq[char] || 0) + 1;
-            }
-            var length = text.length;
-            var keys = Object.keys(freq);
-            for (var j = 0; j < keys.length; j++) {
-                var count = freq[keys[j]];
-                var p = count / length;
-                entropy -= p * Math.log2(p);
-            }
-            var hasBase64 = /[A-Za-z0-9+/=]{20,}/.test(text);
-            var hasHex = /[0-9A-Fa-f]{16,}/.test(text);
-            var score = 0;
-            if (entropy > 4.5) score += 25;
-            if (hasBase64) score += 20;
-            if (hasHex) score += 15;
-            if (score >= 40) {
-                return {
-                    safe: false,
-                    keyword: '信息熵异常',
-                    desc: '熵值 ' + entropy.toFixed(2) + '，疑似编码内容',
-                    source: 'entropy'
-                };
-            }
-        } catch (e) {}
         return null;
     }
 
     function wordFrequencyCheck(text) {
         return null;
-        if (!text || typeof text !== 'string' || text.length < 10) return null;
-        try {
-            var freq = {};
-            for (var i = 0; i < text.length; i++) {
-                var char = text[i];
-                freq[char] = (freq[char] || 0) + 1;
-            }
-            var values = [];
-            var keys = Object.keys(freq);
-            for (var j = 0; j < keys.length; j++) {
-                values.push(freq[keys[j]]);
-            }
-            if (values.length === 0) return null;
-            var maxFreq = Math.max.apply(null, values);
-            var sum = 0;
-            for (var k = 0; k < values.length; k++) {
-                sum += values[k];
-            }
-            var avgFreq = sum / values.length;
-            if (maxFreq > avgFreq * 8 && text.length > 15) {
-                return {
-                    safe: false,
-                    keyword: '词频异常',
-                    desc: '某字符出现频率异常高 (' + maxFreq + '次)',
-                    source: 'word_frequency'
-                };
-            }
-        } catch (e) {}
-        return null;
     }
 
     function pinyinHomophoneCheck(text) {
-        return null;
-        if (!text || typeof text !== 'string' || text.length < 4) return null;
-        try {
-            var letterCount = (text.match(/[a-zA-Z]/g) || []).length;
-            var spaceCount = (text.match(/\s/g) || []).length;
-            if (letterCount > 4 && spaceCount > 0 && letterCount / text.length > 0.4) {
-                return {
-                    safe: false,
-                    keyword: '拼音替代',
-                    desc: '包含拼音内容，疑似绕过检测',
-                    source: 'pinyin_homophone'
-                };
-            }
-            var digitCount = (text.match(/\d/g) || []).length;
-            if (digitCount > 2 && digitCount / text.length > 0.3) {
-                return {
-                    safe: false,
-                    keyword: '数字谐音',
-                    desc: '包含数字组合，疑似谐音绕过',
-                    source: 'pinyin_homophone'
-                };
-            }
-            if (/^[bcdfghjklmnpqrstvwxyz]{2,4}$/i.test(text.trim())) {
-                return {
-                    safe: false,
-                    keyword: '拼音首字母',
-                    desc: '拼音首字母缩写，疑似绕过检测',
-                    source: 'pinyin_homophone'
-                };
-            }
-        } catch (e) {}
         return null;
     }
 
@@ -579,7 +486,6 @@
             mixedScriptCheck,
             separatorInjectionCheck,
             entropyCheck,
-            //wordFrequencyCheck,
             pinyinHomophoneCheck,
             behaviorCheck,
             unicodeNormalizationCheck
@@ -593,6 +499,116 @@
             } catch (e) {}
         }
         return null;
+    }
+
+    // ==================== Qwen3Guard 本地 AI 加载 ====================
+
+    async function loadQwenModel() {
+        if (qwenLoaded) return;
+        if (qwenLoading) {
+            return new Promise(function(resolve) {
+                var check = function() {
+                    if (qwenLoaded) {
+                        resolve();
+                    } else {
+                        setTimeout(check, 500);
+                    }
+                };
+                check();
+            });
+        }
+
+        qwenLoading = true;
+        console.log('🧠 正在加载 Qwen3Guard 本地模型 (~940MB)...');
+
+        try {
+            var hasWebGPU = false;
+            if (navigator.gpu) {
+                try {
+                    var adapter = await navigator.gpu.requestAdapter();
+                    hasWebGPU = !!adapter;
+                } catch (e) {}
+            }
+
+            console.log(hasWebGPU ? '🚀 WebGPU 加速可用' : '💻 使用 CPU (WASM)');
+
+            var script = document.createElement('script');
+            script.type = 'importmap';
+            script.textContent = JSON.stringify({
+                imports: {
+                    '@huggingface/transformers': 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.0-next.3/dist/transformers.min.js'
+                }
+            });
+            document.head.appendChild(script);
+
+            await new Promise(function(resolve) {
+                setTimeout(resolve, 500);
+            });
+
+            var module = await import('@huggingface/transformers');
+            var pipeline = module.pipeline;
+
+            qwenModel = await pipeline('text-generation', 'rogerdeng/Qwen3Guard-0.6B-ONNX-Quantized', {
+                model_file_name: 'model_quantized',
+                device: hasWebGPU ? 'webgpu' : 'cpu',
+                dtype: 'q4',
+                progress_callback: function(progress) {
+                    if (progress.status === 'progress') {
+                        var pct = Math.round(progress.progress * 100);
+                        console.log('📥 模型加载进度: ' + pct + '%');
+                    }
+                }
+            });
+
+            qwenLoaded = true;
+            qwenLoading = false;
+            console.log('✅ Qwen3Guard 模型加载完成');
+        } catch (error) {
+            console.error('❌ Qwen3Guard 加载失败:', error);
+            qwenLoading = false;
+            qwenLoaded = false;
+        }
+    }
+
+    // ==================== Qwen3Guard 本地 AI 检测 ====================
+
+    async function qwenCheck(text) {
+        if (!qwenLoaded || !qwenModel) {
+            return null;
+        }
+
+        try {
+            var startTime = Date.now();
+            console.log('🧠 Qwen3Guard 推理中...');
+
+            var output = await qwenModel(text, {
+                max_new_tokens: 15,
+                temperature: 0,
+                use_cache: true
+            });
+
+            var elapsed = (Date.now() - startTime) / 1000;
+            console.log('✅ Qwen3Guard 推理完成，耗时: ' + elapsed.toFixed(1) + 's');
+
+            var result = output[0]?.generated_text || '';
+            var lower = result.toLowerCase();
+
+            var isSafe = lower.includes('safe') && !lower.includes('unsafe');
+
+            if (!isSafe) {
+                return {
+                    safe: false,
+                    keyword: '本地AI检测',
+                    desc: 'Qwen3Guard 检测到违规内容',
+                    source: 'qwen3guard'
+                };
+            }
+
+            return { safe: true, source: 'qwen3guard' };
+        } catch (error) {
+            console.error('Qwen3Guard 推理失败:', error);
+            return null;
+        }
     }
 
     // ==================== 云端 API 检测 ====================
@@ -629,7 +645,7 @@
         }
     }
 
-    // ==================== AI 检测 ====================
+    // ==================== 云端 AI 检测 ====================
 
     async function aiConfirmCheck(text) {
         if (!text || typeof text !== 'string') return null;
@@ -719,10 +735,10 @@
                     return;
                 }
 
-                // ===== 第2层：本地12项行为检测 =====
+                // ===== 第2层：本地11项行为检测 =====
                 var localResult = localFastCheck(text);
                 if (localResult && localResult.safe === false) {
-                    showWarning('您的信息触发了本地安全检测，消息已被拦截');
+                    showWarning('您的信息触发了本地安全规则，消息已被拦截');
                     newBtn.disabled = false;
                     return;
                 }
@@ -730,15 +746,27 @@
                 // ===== 第3层：本地敏感词库 =====
                 var wordsetResult = checkLocalWordSet(text);
                 if (wordsetResult && wordsetResult.safe === false) {
-                    showWarning('您的信息包含敏感内容，消息已被本地库识别拦截。');
+                    showWarning('您的信息包含违规内容，已被拦截。');
                     newBtn.disabled = false;
                     return;
                 }
 
-                // ===== 第4层：云端API检测（同步） =====
+                // ===== 第4层：Qwen3Guard 本地 AI =====
+                var qwenResult = null;
+                if (qwenLoaded) {
+                    qwenResult = await qwenCheck(text);
+                    if (qwenResult && qwenResult.safe === false) {
+                        showWarning('您的信息包含违规内容，已被QVENAI识别拦截。');
+                        newBtn.disabled = false;
+                        return;
+                    }
+                } else {
+                    loadQwenModel().catch(function(e) {});
+                }
+
+                // ===== 第5层：云端API检测 =====
                 var apiResult = await apiCheck(text);
 
-                // API 未命中 → 直接发送
                 if (!apiResult || apiResult.safe !== false) {
                     var enterEvent = new KeyboardEvent('keypress', {
                         key: 'Enter',
@@ -753,26 +781,23 @@
                     return;
                 }
 
-                // ===== API 命中 → 调用AI二次确认 =====
-                console.log('⚠️ API检测到敏感词，调用AI二次确认（30秒）...');
+                // ===== API 命中 → 调用云端AI二次确认 =====
+                console.log('⚠️ API检测到敏感词，调用云端AI二次确认（15秒）...');
                 var aiResult = await aiConfirmCheck(text);
 
-                // AI超时或不可用 → 采用API结果，直接拦截
                 if (aiResult && aiResult.fallback === true) {
                     console.log('⏱️ AI超时/不可用，采用API判定结果，拦截');
-                    showWarning('您的信息包含敏感内容: "' + apiResult.keyword + '"，消息已被云端库识别拦截');
+                    showWarning('您的信息包含违规内容，已被云端库识别拦截。');
                     newBtn.disabled = false;
                     return;
                 }
 
-                // AI确认违规 → 拦截
                 if (aiResult && aiResult.safe === false) {
-                    showWarning('您的信息包含敏感内容: "' + aiResult.keyword + '"，消息已被云端AI识别拦截');
+                    showWarning('您的信息包含违规内容，已被云端AI识别拦截。');
                     newBtn.disabled = false;
                     return;
                 }
 
-                // AI不确认 → 放行
                 console.log('✅ AI未确认违规，放行');
                 var enterEvent = new KeyboardEvent('keypress', {
                     key: 'Enter',
@@ -790,10 +815,9 @@
 
             } catch (error) {
                 console.error('发送出错:', error);
-                // AI调用异常，采用API结果拦截
                 if (apiResult && apiResult.safe === false) {
-                    console.warn('⚠️ AI调用异常，采用API判定结果，拦截');
-                    showWarning('您的信息包含敏感内容: "' + apiResult.keyword + '"，消息已被云端库识别拦截 ');
+                    console.warn('⚠️ 检测异常，采用API判定结果，拦截');
+                    showWarning('您的信息包含违规内容，已被云端库识别拦截。');
                 } else {
                     showWarning('检测服务异常，请稍后重试。');
                 }
@@ -814,7 +838,7 @@
         });
 
         isIntercepted = true;
-        console.log('✅ API命中→AI确认模式（AI超时/不可用时API兜底拦截）已启用');
+        console.log('✅ 检测模块已启用（本地 + Qwen3Guard + API + 云端AI）');
         console.log('🚀 本地词库代理加速已启用，共 ' + PROXY_LIST.length + ' 个代理源');
         return true;
     }
@@ -844,6 +868,9 @@
             localWordsLoaded = false;
             localWordSet = null;
             loadLocalWordSetWithRetry();
+        },
+        loadQwen: function() {
+            loadQwenModel();
         }
     };
 
@@ -851,6 +878,12 @@
 
     function init() {
         preloadLocalWordSet();
+
+        setTimeout(function() {
+            loadQwenModel().catch(function(e) {
+                console.warn('Qwen3Guard 后台加载失败:', e);
+            });
+        }, 3000);
 
         try {
             var attempts = 0;
