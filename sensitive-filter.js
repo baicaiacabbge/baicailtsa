@@ -6,7 +6,7 @@
         AI_API_URL: 'https://api.auth.top/api/aidetect',
         AI_API_KEY: 'cd8b7b5bac0e1e4a',
         TIMEOUT: 5000,
-        AI_TIMEOUT: 30000,
+        AI_TIMEOUT: 15000,
 
         // ⭐ 本地敏感词库 Raw 链接
         LOCAL_WORDS_URL: 'https://raw.githubusercontent.com/baicaiacabbge/baicailtsa/main/bendicc/word.txt',
@@ -162,26 +162,32 @@
         });
     }
 
+    // ==================== 核心改动：智能检测本地词库 ====================
     function checkLocalWordSet(text) {
-        if (!localWordSet) {
-            return null;
-        }
-        var words = localWordSet.values();
-        for (var word of words) {
-            if (word.length <= 1) continue;
-            if (/^[0-9]+$/.test(word) && word.length < 3) continue;
-            if (/^[a-zA-Z]+$/.test(word) && word.length < 2) continue;
-            if (text.indexOf(word) !== -1) {
-                return {
-                    safe: false,
-                    keyword: word,
-                    desc: '本地敏感词库命中',
-                    source: 'local_wordset'
-                };
-            }
-        }
+    if (!localWordSet) {
         return null;
     }
+    var words = localWordSet.values();
+    for (var word of words) {
+        // 只跳过单字（避免"一、了、的"误报）
+        if (word.length <= 1) continue;
+        // 纯数字短词不拦截（避免"11"误报）
+        if (/^[0-9]+$/.test(word) && word.length < 3) continue;
+        // 纯字母短词：只跳过1个字母，检测2个字母及以上（让"SB"能被检测）
+        if (/^[a-zA-Z]+$/.test(word) && word.length < 2) continue;
+
+        // 只要包含就拦截
+        if (text.indexOf(word) !== -1) {
+            return {
+                safe: false,
+                keyword: word,
+                desc: '本地敏感词库命中',
+                source: 'local_wordset'
+            };
+        }
+    }
+    return null;
+}
 
     function preloadLocalWordSet() {
         loadLocalWordSetWithRetry().catch(function(e) {});
@@ -190,8 +196,6 @@
     // ========== 核心变量 ==========
     var isIntercepted = false;
     var behaviorHistory = [];
-    var messageIdCounter = 0;
-    var pendingMessages = {}; // 存储待审核的消息 { messageId: { text, element } }
 
     function getMessageInput() {
         return document.getElementById('messageInput');
@@ -241,7 +245,7 @@
         return null;
     }
 
-    // ==================== 本地11项检测 ====================
+    // ==================== 本地12项检测 ====================
 
     function zeroWidthCharCheck(text) {
         if (!text || typeof text !== 'string') return null;
@@ -394,7 +398,7 @@
     }
 
     function entropyCheck(text) {
-        return null;
+         return null;
         if (!text || typeof text !== 'string' || text.length < 5) return null;
         try {
             var entropy = 0;
@@ -575,6 +579,7 @@
             mixedScriptCheck,
             separatorInjectionCheck,
             entropyCheck,
+            //wordFrequencyCheck,
             pinyinHomophoneCheck,
             behaviorCheck,
             unicodeNormalizationCheck
@@ -671,180 +676,7 @@
         }
     }
 
-    // ==================== 通过 MutationObserver 捕获消息的数据库 ID ====================
-
-    function setupDbIdCapture() {
-        var messageList = document.getElementById('messageList');
-        if (!messageList) return;
-
-        var observer = new MutationObserver(function(mutations) {
-            mutations.forEach(function(mutation) {
-                mutation.addedNodes.forEach(function(node) {
-                    if (node.nodeType === 1) { // 元素节点
-                        // 检查是否是消息元素
-                        var msgElement = node;
-                        // 如果元素本身是消息，或者包含消息子元素
-                        if (msgElement.classList && (
-                            msgElement.classList.contains('message-item') ||
-                            msgElement.classList.contains('chat-message') ||
-                            msgElement.className.indexOf('message') !== -1
-                        )) {
-                            // 检查元素是否包含文本内容
-                            var text = msgElement.textContent || '';
-                            // 查找是否有待审核的消息匹配此文本
-                            for (var id in pendingMessages) {
-                                if (pendingMessages.hasOwnProperty(id)) {
-                                    var pending = pendingMessages[id];
-                                    // 如果文本匹配且元素还没绑定ID
-                                    if (text.indexOf(pending.text) !== -1 && !msgElement.dataset.dbId) {
-                                        // 尝试从元素的子元素或属性中提取数据库ID
-                                        // 检查是否有data属性
-                                        var dbId = msgElement.dataset.id || 
-                                                   msgElement.getAttribute('data-message-id') ||
-                                                   msgElement.getAttribute('data-id');
-                                        if (dbId) {
-                                            msgElement.dataset.dbId = dbId;
-                                            // 同时用我们的ID标记
-                                            msgElement.id = id;
-                                            pending.element = msgElement;
-                                            console.log('🔗 已捕获消息ID:', dbId, '元素ID:', id);
-                                            delete pendingMessages[id];
-                                        } else {
-                                            // 如果还没渲染出ID，延迟再检查
-                                            setTimeout(function() {
-                                                var dbId2 = msgElement.dataset.id || 
-                                                            msgElement.getAttribute('data-message-id') ||
-                                                            msgElement.getAttribute('data-id');
-                                                if (dbId2) {
-                                                    msgElement.dataset.dbId = dbId2;
-                                                    msgElement.id = id;
-                                                    console.log('🔗 延迟捕获消息ID:', dbId2);
-                                                    delete pendingMessages[id];
-                                                } else {
-                                                    // 如果仍然没有ID，用时间戳作为备用
-                                                    console.warn('⚠️ 未找到数据库ID，使用时间戳备用');
-                                                    msgElement.dataset.dbId = 'local_' + Date.now();
-                                                    msgElement.id = id;
-                                                }
-                                            }, 500);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
-            });
-        });
-
-        observer.observe(messageList, {
-            childList: true,
-            subtree: true
-        });
-
-        console.log('🔍 MutationObserver 已启动，等待消息捕获');
-    }
-
-    // ==================== 真正的撤回（DOM移除 + 数据库删除） ====================
-
-    function recallMessage(messageId, keyword, source) {
-        try {
-            var msgElement = document.getElementById(messageId);
-            
-            if (msgElement) {
-                // 获取数据库 ID
-                var dbId = msgElement.dataset.dbId;
-                
-                // 从 DOM 中移除消息
-                msgElement.remove();
-                console.log('🗑️ 消息已从DOM移除');
-                
-                // 从 Supabase 数据库删除
-                if (dbId && typeof supabase !== 'undefined') {
-                    supabase
-                        .from('messages')
-                        .delete()
-                        .eq('id', dbId)
-                        .then(function(response) {
-                            if (response.error) {
-                                console.warn('数据库删除失败:', response.error);
-                            } else {
-                                console.log('✅ 数据库消息已删除:', dbId);
-                            }
-                        })
-                        .catch(function(err) {
-                            console.warn('数据库删除异常:', err);
-                        });
-                } else {
-                    if (!dbId) {
-                        console.warn('⚠️ 消息没有绑定数据库ID');
-                    }
-                    if (typeof supabase === 'undefined') {
-                        console.warn('⚠️ Supabase 客户端未找到');
-                    }
-                }
-                
-                showWarning('您的消息包含敏感内容: "' + keyword + '"，已撤回');
-            } else {
-                console.warn('⚠️ 未找到消息元素:', messageId);
-                // 备用方案：如果通过ID找不到，尝试用文本匹配
-                tryFallbackRecall(messageId, keyword, source);
-            }
-        } catch (e) {
-            console.warn('撤回失败:', e);
-        }
-    }
-
-    // ==================== 备用撤回方案 ====================
-
-    function tryFallbackRecall(messageId, keyword, source) {
-        try {
-            var messages = document.querySelectorAll('.message-item, .chat-message, [class*="message"]');
-            // 尝试从pendingMessages中获取文本
-            var text = '';
-            for (var id in pendingMessages) {
-                if (id === messageId) {
-                    text = pendingMessages[id].text || '';
-                    break;
-                }
-            }
-            
-            if (!text) {
-                // 如果还没保存文本，尝试从消息列表的最后一条匹配
-                if (messages.length > 0) {
-                    var lastMsg = messages[messages.length - 1];
-                    text = lastMsg.textContent || '';
-                }
-            }
-            
-            for (var i = 0; i < messages.length; i++) {
-                var msg = messages[i];
-                var msgText = msg.textContent || '';
-                if (text && msgText.indexOf(text) !== -1) {
-                    var dbId = msg.dataset.dbId;
-                    if (dbId && typeof supabase !== 'undefined') {
-                        supabase
-                            .from('messages')
-                            .delete()
-                            .eq('id', dbId)
-                            .then(function(response) {
-                                if (!response.error) {
-                                    console.log('✅ 备用方案：数据库消息已删除:', dbId);
-                                }
-                            });
-                    }
-                    msg.remove();
-                    console.log('🗑️ 备用方案：消息已移除');
-                    showWarning('您的消息包含敏感内容: "' + keyword + '"，已撤回');
-                    break;
-                }
-            }
-        } catch (e) {
-            console.warn('备用撤回失败:', e);
-        }
-    }
-
-    // ==================== 拦截发送（先发后审） ====================
+    // ==================== 拦截发送 ====================
 
     function interceptSend() {
         if (isIntercepted) return true;
@@ -887,7 +719,7 @@
                     return;
                 }
 
-                // ===== 第2层：本地11项行为检测（同步拦截） =====
+                // ===== 第2层：本地12项行为检测 =====
                 var localResult = localFastCheck(text);
                 if (localResult && localResult.safe === false) {
                     showWarning('您的信息触发了本地安全检测，消息已被拦截');
@@ -895,23 +727,53 @@
                     return;
                 }
 
-                // ===== 第3层：本地敏感词库（同步拦截） =====
+                // ===== 第3层：本地敏感词库 =====
                 var wordsetResult = checkLocalWordSet(text);
                 if (wordsetResult && wordsetResult.safe === false) {
-                    showWarning('您的信息包含敏感内容: "' + wordsetResult.keyword + '"，消息已被拦截');
+                    showWarning('您的信息包含敏感内容，消息已被本地库识别拦截。');
                     newBtn.disabled = false;
                     return;
                 }
 
-                // ===== 第4层：立即发送 =====
-                var messageId = 'msg-' + (++messageIdCounter);
-                
-                // 保存消息到待审核列表
-                pendingMessages[messageId] = {
-                    text: text,
-                    element: null
-                };
+                // ===== 第4层：云端API检测（同步） =====
+                var apiResult = await apiCheck(text);
 
+                // API 未命中 → 直接发送
+                if (!apiResult || apiResult.safe !== false) {
+                    var enterEvent = new KeyboardEvent('keypress', {
+                        key: 'Enter',
+                        code: 'Enter',
+                        keyCode: 13,
+                        which: 13,
+                        bubbles: true,
+                        cancelable: true
+                    });
+                    newInput.dispatchEvent(enterEvent);
+                    newBtn.disabled = false;
+                    return;
+                }
+
+                // ===== API 命中 → 调用AI二次确认 =====
+                console.log('⚠️ API检测到敏感词，调用AI二次确认（30秒）...');
+                var aiResult = await aiConfirmCheck(text);
+
+                // AI超时或不可用 → 采用API结果，直接拦截
+                if (aiResult && aiResult.fallback === true) {
+                    console.log('⏱️ AI超时/不可用，采用API判定结果，拦截');
+                    showWarning('您的信息包含敏感内容: "' + apiResult.keyword + '"，消息已被云端库识别拦截');
+                    newBtn.disabled = false;
+                    return;
+                }
+
+                // AI确认违规 → 拦截
+                if (aiResult && aiResult.safe === false) {
+                    showWarning('您的信息包含敏感内容: "' + aiResult.keyword + '"，消息已被云端AI识别拦截');
+                    newBtn.disabled = false;
+                    return;
+                }
+
+                // AI不确认 → 放行
+                console.log('✅ AI未确认违规，放行');
                 var enterEvent = new KeyboardEvent('keypress', {
                     key: 'Enter',
                     code: 'Enter',
@@ -922,39 +784,19 @@
                 });
                 newInput.dispatchEvent(enterEvent);
 
-                // ===== 第5层：后台异步检测（API先 → AI后） =====
-                console.log('🔍 后台检测开始:', text);
-
-                apiCheck(text).then(function(apiResult) {
-                    if (apiResult && apiResult.safe === false) {
-                        console.log('⚠️ API检测到敏感词，调用AI确认...');
-                        return aiConfirmCheck(text).then(function(aiResult) {
-                            if (aiResult && aiResult.safe === false) {
-                                recallMessage(messageId, aiResult.keyword, '云端AI识别');
-                            } else if (aiResult && aiResult.fallback === true) {
-                                recallMessage(messageId, apiResult.keyword, '云端库识别');
-                            } else {
-                                console.log('✅ AI未确认违规，放行');
-                                // 从待审核列表中移除
-                                delete pendingMessages[messageId];
-                            }
-                        });
-                    } else {
-                        console.log('✅ API检测通过');
-                        delete pendingMessages[messageId];
-                        return null;
-                    }
-                }).catch(function(e) {
-                    console.warn('⚠️ 后台检测出错:', e);
-                    delete pendingMessages[messageId];
-                });
-
                 setTimeout(function() {
                     newBtn.disabled = false;
                 }, 500);
 
             } catch (error) {
                 console.error('发送出错:', error);
+                // AI调用异常，采用API结果拦截
+                if (apiResult && apiResult.safe === false) {
+                    console.warn('⚠️ AI调用异常，采用API判定结果，拦截');
+                    showWarning('您的信息包含敏感内容: "' + apiResult.keyword + '"，消息已被云端库识别拦截 ');
+                } else {
+                    showWarning('检测服务异常，请稍后重试。');
+                }
                 newBtn.disabled = false;
             }
         }
@@ -972,7 +814,7 @@
         });
 
         isIntercepted = true;
-        console.log('✅ 先发后审模式已启用（本地同步拦截 + API/AI后台异步检测）');
+        console.log('✅ API命中→AI确认模式（AI超时/不可用时API兜底拦截）已启用');
         console.log('🚀 本地词库代理加速已启用，共 ' + PROXY_LIST.length + ' 个代理源');
         return true;
     }
@@ -1009,11 +851,6 @@
 
     function init() {
         preloadLocalWordSet();
-
-        // 启动 MutationObserver 捕获消息ID
-        setTimeout(function() {
-            setupDbIdCapture();
-        }, 1000);
 
         try {
             var attempts = 0;
