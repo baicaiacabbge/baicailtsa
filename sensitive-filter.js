@@ -746,7 +746,7 @@
                 // ===== 第3层：本地敏感词库 =====
                 var wordsetResult = checkLocalWordSet(text);
                 if (wordsetResult && wordsetResult.safe === false) {
-                    showWarning('您的信息包含违规内容，已被拦截。');
+                    showWarning('您的信息包含违规内容，已被本地库识别拦截。');
                     newBtn.disabled = false;
                     return;
                 }
