@@ -29,7 +29,6 @@
     var PROXY_LIST = [
         'https://gitproxy.click/',
         'https://ghproxy.net/',
-
         'https://gh.api.99988866.xyz/',
         'https://github.akams.cn/'
     ];
@@ -223,6 +222,31 @@
                 setTimeout(function() {
                     errorEl.style.display = 'none';
                 }, 3000);
+            }
+        } catch (e) {}
+    }
+
+    // ==================== 显示加载状态到界面 ====================
+    function showStatus(text, isSuccess) {
+        try {
+            var statusDiv = document.getElementById('wordsetStatus');
+            if (!statusDiv) {
+                var warningDiv = document.getElementById('warningMessage');
+                if (warningDiv) {
+                    statusDiv = document.createElement('div');
+                    statusDiv.id = 'wordsetStatus';
+                    statusDiv.style.cssText = 'padding:6px 12px;font-size:13px;text-align:center;border-bottom:1px solid #2a2a4a;background:#1a1a2e;';
+                    warningDiv.parentNode.insertBefore(statusDiv, warningDiv.nextSibling);
+                }
+            }
+            if (statusDiv) {
+                statusDiv.textContent = text;
+                statusDiv.style.color = isSuccess ? '#4caf50' : '#ffd700';
+                if (isSuccess === true) {
+                    setTimeout(function() {
+                        if (statusDiv) statusDiv.style.display = 'none';
+                    }, 3000);
+                }
             }
         } catch (e) {}
     }
@@ -520,6 +544,7 @@
         }
 
         qwenLoading = true;
+        showStatus('⏳ 正在加载 BCQVM 本地AI模型 (约940MB)...', false);
         console.log('🧠 正在加载 Qwen3Guard 本地模型 (~940MB)...');
 
         try {
@@ -557,21 +582,24 @@
                     if (progress.status === 'progress') {
                         var pct = Math.round(progress.progress * 100);
                         console.log('📥 模型加载进度: ' + pct + '%');
+                        showStatus('⏳ BCQVM 加载中 ' + pct + '%', false);
                     }
                 }
             });
 
             qwenLoaded = true;
             qwenLoading = false;
+            showStatus('✅ BCQVM 加载完成！', true);
             console.log('✅ Qwen3Guard 模型加载完成');
         } catch (error) {
             console.error('❌ Qwen3Guard 加载失败:', error);
+            showStatus('❌ BCQVM 加载失败，请刷新重试', false);
             qwenLoading = false;
             qwenLoaded = false;
         }
     }
 
-    // ==================== Qwen3Guard 本地 AI 检测（已修改） ====================
+    // ==================== Qwen3Guard 本地 AI 检测 ====================
 
     async function qwenCheck(text) {
         if (!qwenLoaded || !qwenModel) {
@@ -594,7 +622,7 @@
             var result = output[0]?.generated_text || '';
             var lower = result.toLowerCase();
 
-            // ✅ 只拦截这些高危类别
+            // 只拦截这些高危类别
             var unsafeKeywords = ['violent', 'sexual', 'self-harm', 'illegal', 'hate'];
             var isUnsafe = false;
             for (var i = 0; i < unsafeKeywords.length; i++) {
@@ -604,7 +632,7 @@
                 }
             }
 
-            // ✅ 政治敏感（political）不拦截
+            // 政治敏感不拦截
             if (lower.includes('political')) {
                 isUnsafe = false;
             }
@@ -765,7 +793,7 @@
                     return;
                 }
 
-                // ===== 第4层：Qwen3Guard 本地 AI =====
+                // ===== 第4层：BCQVM（Qwen3Guard）本地 AI =====
                 var qwenResult = null;
                 if (qwenLoaded) {
                     qwenResult = await qwenCheck(text);
@@ -774,8 +802,6 @@
                         newBtn.disabled = false;
                         return;
                     }
-                } else {
-                    loadQwenModel().catch(function(e) {});
                 }
 
                 // ===== 第5层：云端API检测 =====
@@ -852,7 +878,7 @@
         });
 
         isIntercepted = true;
-        console.log('✅ 检测模块已启用（本地 + Qwen3Guard + API + 云端AI）');
+        console.log('✅ 检测模块已启用（本地 + BCQVM + API + 云端AI）');
         console.log('🚀 本地词库代理加速已启用，共 ' + PROXY_LIST.length + ' 个代理源');
         return true;
     }
@@ -893,11 +919,13 @@
     function init() {
         preloadLocalWordSet();
 
+        // ✅ 页面加载后立即开始加载 Qwen3Guard（不等待，不阻塞）
         setTimeout(function() {
             loadQwenModel().catch(function(e) {
                 console.warn('Qwen3Guard 后台加载失败:', e);
+                showStatus('❌ BCQVM 加载失败，请刷新重试', false);
             });
-        }, 3000);
+        }, 1000);
 
         try {
             var attempts = 0;
