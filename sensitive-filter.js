@@ -189,11 +189,6 @@
     // ========== 核心变量 ==========
     var isIntercepted = false;
     var behaviorHistory = [];
-    var messageIdCounter = 0;
-    var pendingMessages = {};
-    var qwenModel = null;
-    var qwenLoading = false;
-    var qwenLoaded = false;
 
     function getMessageInput() {
         return document.getElementById('messageInput');
@@ -222,31 +217,6 @@
                 setTimeout(function() {
                     errorEl.style.display = 'none';
                 }, 3000);
-            }
-        } catch (e) {}
-    }
-
-    // ==================== 显示加载状态到界面 ====================
-    function showStatus(text, isSuccess) {
-        try {
-            var statusDiv = document.getElementById('wordsetStatus');
-            if (!statusDiv) {
-                var warningDiv = document.getElementById('warningMessage');
-                if (warningDiv) {
-                    statusDiv = document.createElement('div');
-                    statusDiv.id = 'wordsetStatus';
-                    statusDiv.style.cssText = 'padding:6px 12px;font-size:13px;text-align:center;border-bottom:1px solid #2a2a4a;background:#1a1a2e;';
-                    warningDiv.parentNode.insertBefore(statusDiv, warningDiv.nextSibling);
-                }
-            }
-            if (statusDiv) {
-                statusDiv.textContent = text;
-                statusDiv.style.color = isSuccess ? '#4caf50' : '#ffd700';
-                if (isSuccess === true) {
-                    setTimeout(function() {
-                        if (statusDiv) statusDiv.style.display = 'none';
-                    }, 3000);
-                }
             }
         } catch (e) {}
     }
@@ -526,132 +496,6 @@
         return null;
     }
 
-    // ==================== Qwen3Guard 本地 AI 加载（从腾讯云 COS） ====================
-
-    async function loadQwenModel() {
-        if (qwenLoaded) return;
-        if (qwenLoading) {
-            return new Promise(function(resolve) {
-                var check = function() {
-                    if (qwenLoaded) {
-                        resolve();
-                    } else {
-                        setTimeout(check, 500);
-                    }
-                };
-                check();
-            });
-        }
-
-        qwenLoading = true;
-        showStatus('⏳ 正在加载 BCQVM 本地AI模型 (约940MB)...', false);
-        console.log('🧠 正在加载 Qwen3Guard 本地模型 (~940MB)...');
-
-        try {
-            var hasWebGPU = false;
-            if (navigator.gpu) {
-                try {
-                    var adapter = await navigator.gpu.requestAdapter();
-                    hasWebGPU = !!adapter;
-                } catch (e) {}
-            }
-
-            console.log(hasWebGPU ? '🚀 WebGPU 加速可用' : '💻 使用 CPU (WASM)');
-
-            var script = document.createElement('script');
-            script.type = 'importmap';
-            script.textContent = JSON.stringify({
-                imports: {
-                    '@huggingface/transformers': 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.0.0-next.3/dist/transformers.min.js'
-                }
-            });
-            document.head.appendChild(script);
-
-            await new Promise(function(resolve) {
-                setTimeout(resolve, 500);
-            });
-
-            var module = await import('@huggingface/transformers');
-            var pipeline = module.pipeline;
-            var env = module.env;
-
-            // ✅ 设置模型基础路径为腾讯云 COS
-            env.localModelPath = 'https://baicai-model-1331308377.cos.ap-chongqing.myqcloud.com/';
-
-            qwenModel = await pipeline('text-generation', 'model_quantized_q4.onnx', {
-                device: hasWebGPU ? 'webgpu' : 'cpu',
-                dtype: 'q4',
-                progress_callback: function(progress) {
-                    if (progress.status === 'progress') {
-                        var pct = Math.min(Math.round(progress.progress * 100), 100);
-                        console.log('模型加载进度: ' + pct + '%');
-                        showStatus('BCQVM 加载中 ' + pct + '%', false);
-                    }
-                }
-            });
-
-            if (qwenModel) {
-                qwenLoaded = true;
-                qwenLoading = false;
-                showStatus('✅ BCQVM 加载完成！', true);
-                console.log('✅ Qwen3Guard 模型加载完成');
-            } else {
-                throw new Error('模型加载返回空');
-            }
-        } catch (error) {
-            console.error('❌ Qwen3Guard 加载失败:', error);
-            showStatus('❌ BCQVM 加载失败: ' + error.message.substring(0, 50), false);
-            qwenLoading = false;
-            qwenLoaded = false;
-        }
-    }
-
-    // ==================== Qwen3Guard 本地 AI 检测（精确匹配） ====================
-
-    async function qwenCheck(text) {
-        if (!qwenLoaded || !qwenModel) {
-            return null;
-        }
-
-        try {
-            var startTime = Date.now();
-            console.log('🧠 Qwen3Guard 推理中...');
-
-            var output = await qwenModel(text, {
-                max_new_tokens: 15,
-                temperature: 0,
-                use_cache: true
-            });
-
-            var elapsed = (Date.now() - startTime) / 1000;
-            console.log('✅ Qwen3Guard 推理完成，耗时: ' + elapsed.toFixed(1) + 's');
-
-            var result = output[0]?.generated_text || '';
-            var lower = result.toLowerCase().trim();
-
-            // 精确匹配三种状态
-            if (lower === 'unsafe') {
-                return {
-                    safe: false,
-                    keyword: 'AI检测',
-                    desc: 'Qwen3Guard 检测到违规内容',
-                    source: 'qwen3guard'
-                };
-            }
-
-            if (lower === 'safe' || lower === 'controversial') {
-                return { safe: true, source: 'qwen3guard' };
-            }
-
-            // 非预期输出 → 返回 null，让上游决策
-            console.warn('Qwen3Guard 返回非预期结果:', result);
-            return null;
-        } catch (error) {
-            console.error('Qwen3Guard 推理失败:', error);
-            return null;
-        }
-    }
-
     // ==================== 云端 API 检测 ====================
 
     async function apiCheck(text) {
@@ -792,18 +636,7 @@
                     return;
                 }
 
-                // ===== 第4层：Qwen3Guard 本地 AI =====
-                var qwenResult = null;
-                if (qwenLoaded) {
-                    qwenResult = await qwenCheck(text);
-                    if (qwenResult && qwenResult.safe === false) {
-                        showWarning('您的信息包含违规内容，已被本地AI识别拦截。');
-                        newBtn.disabled = false;
-                        return;
-                    }
-                }
-
-                // ===== 第5层：云端API检测 =====
+                // ===== 第4层：云端API检测 =====
                 var apiResult = await apiCheck(text);
 
                 if (!apiResult || apiResult.safe !== false) {
@@ -877,7 +710,7 @@
         });
 
         isIntercepted = true;
-        console.log('✅ 检测模块已启用（本地 + Qwen3Guard + API + 云端AI）');
+        console.log('✅ 检测模块已启用（本地 + API + 云端AI）');
         console.log('🚀 本地词库代理加速已启用，共 ' + PROXY_LIST.length + ' 个代理源');
         return true;
     }
@@ -907,9 +740,6 @@
             localWordsLoaded = false;
             localWordSet = null;
             loadLocalWordSetWithRetry();
-        },
-        loadQwen: function() {
-            loadQwenModel();
         }
     };
 
@@ -917,14 +747,6 @@
 
     function init() {
         preloadLocalWordSet();
-
-        // 后台加载 Qwen3Guard（不阻塞）
-        setTimeout(function() {
-            loadQwenModel().catch(function(e) {
-                console.warn('Qwen3Guard 后台加载失败:', e);
-                showStatus('❌ BCQVM 加载失败，请刷新重试', false);
-            });
-        }, 3000);
 
         try {
             var attempts = 0;
