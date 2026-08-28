@@ -526,7 +526,7 @@
         return null;
     }
 
-    // ==================== Qwen3Guard 本地 AI 加载（有进度条） ====================
+    // ==================== Qwen3Guard 本地 AI 加载（从腾讯云 COS） ====================
 
     async function loadQwenModel() {
         if (qwenLoaded) return;
@@ -544,8 +544,8 @@
         }
 
         qwenLoading = true;
-        showStatus(' 正在加载 BCQVM 模型 (约940MB)...', false);
-        console.log('正在加载 Qwen3Guard 本地模型 (~940MB)...');
+        showStatus('⏳ 正在加载 BCQVM 本地AI模型 (约940MB)...', false);
+        console.log('🧠 正在加载 Qwen3Guard 本地模型 (~940MB)...');
 
         try {
             var hasWebGPU = false;
@@ -573,15 +573,19 @@
 
             var module = await import('@huggingface/transformers');
             var pipeline = module.pipeline;
+            var env = module.env;
 
-            qwenModel = await pipeline('text-generation', 'https://baicai-model-1331308377.cos.ap-chongqing.myqcloud.com/model_quantized_q4.onnx', {
+            // ✅ 设置模型基础路径为腾讯云 COS
+            env.localModelPath = 'https://baicai-model-1331308377.cos.ap-chongqing.myqcloud.com/';
+
+            qwenModel = await pipeline('text-generation', 'model_quantized_q4.onnx', {
                 device: hasWebGPU ? 'webgpu' : 'cpu',
                 dtype: 'q4',
                 progress_callback: function(progress) {
                     if (progress.status === 'progress') {
                         var pct = Math.min(Math.round(progress.progress * 100), 100);
-                        console.log('📥 模型加载进度: ' + pct + '%');
-                        showStatus('BCQVM加载中 ' + pct + '%', false);
+                        console.log('模型加载进度: ' + pct + '%');
+                        showStatus('BCQVM 加载中 ' + pct + '%', false);
                     }
                 }
             });
@@ -589,7 +593,7 @@
             if (qwenModel) {
                 qwenLoaded = true;
                 qwenLoading = false;
-                showStatus('BCQVM加载完成！', true);
+                showStatus('✅ BCQVM 加载完成！', true);
                 console.log('✅ Qwen3Guard 模型加载完成');
             } else {
                 throw new Error('模型加载返回空');
