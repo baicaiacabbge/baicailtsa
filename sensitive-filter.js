@@ -544,7 +544,7 @@
         }
 
         qwenLoading = true;
-        showStatus('⏳ 正在加载 BCQVM 本地AI模型 (约940MB)...', false);
+        showStatus('正在加载 BCQVM模型...', false);
         console.log('🧠 正在加载 Qwen3Guard 本地模型 (~940MB)...');
 
         try {
@@ -574,26 +574,34 @@
             var module = await import('@huggingface/transformers');
             var pipeline = module.pipeline;
 
+            var progressLog = function(progress) {
+                if (progress.status === 'progress') {
+                    // ✅ 限制最大 100%，防止显示 10000%
+                    var pct = Math.min(Math.round(progress.progress * 100), 100);
+                    console.log('模型加载进度: ' + pct + '%');
+                    showStatus('BCQVM加载中 ' + pct + '%', false);
+                }
+            };
+
             qwenModel = await pipeline('text-generation', 'rogerdeng/Qwen3Guard-0.6B-ONNX-Quantized', {
                 model_file_name: 'model_quantized',
                 device: hasWebGPU ? 'webgpu' : 'cpu',
                 dtype: 'q4',
-                progress_callback: function(progress) {
-                    if (progress.status === 'progress') {
-                        var pct = Math.round(progress.progress * 100);
-                        console.log('📥 模型加载进度: ' + pct + '%');
-                        showStatus('⏳ BCQVM 加载中 ' + pct + '%', false);
-                    }
-                }
+                progress_callback: progressLog
             });
 
-            qwenLoaded = true;
-            qwenLoading = false;
-            showStatus('✅ BCQVM 加载完成！', true);
-            console.log('✅ Qwen3Guard 模型加载完成');
+            // 加载完成后检查模型是否真的存在
+            if (qwenModel) {
+                qwenLoaded = true;
+                qwenLoading = false;
+                showStatus('BCQVM 加载完成！', true);
+                console.log('Qwen3Guard 模型加载完成');
+            } else {
+                throw new Error('模型加载返回空');
+            }
         } catch (error) {
             console.error('❌ Qwen3Guard 加载失败:', error);
-            showStatus('❌ BCQVM 加载失败，请刷新重试', false);
+            showStatus('❌ BCQVM 加载失败: ' + error.message.substring(0, 50), false);
             qwenLoading = false;
             qwenLoaded = false;
         }
