@@ -66,7 +66,7 @@
     </div>
 
     <!-- 聊天主面板 -->
-    <div id="chatPanel" style="display: none; width: 100%; flex: 1; display: none; flex-direction: column;">
+    <div id="chatPanel" style="display: none; width: 100%; flex: 1; flex-direction: column;">
         <div class="chat-layout">
             <!-- 聊天主区域 -->
             <div class="chat-main">
@@ -75,7 +75,8 @@
                     <button class="logout-btn" id="logoutBtn">退出登录</button>
                 </div>
                 <div id="warningMessage" class="warning"></div>
-                <div class="messages" id="messageList"></div>
+                <!-- 👇 唯一改动：给 messages 加内联样式填满剩余空间 -->
+                <div class="messages" id="messageList" style="flex:1;min-height:0;overflow-y:auto;height:100%;"></div>
                 <div class="input-area">
                     <input type="text" id="messageInput" placeholder="输入消息..." maxlength="200">
                     <button class="btn" id="sendBtn">发送</button>
