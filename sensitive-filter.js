@@ -577,7 +577,7 @@
         }
     }
 
-    // ==================== 拦截发送 ====================
+    // ==================== 拦截发送（带 Ctrl+Enter 换行支持） ====================
 
     function interceptSend() {
         if (isIntercepted) return true;
@@ -699,11 +699,11 @@
 
         newBtn.addEventListener('click', handleSend);
 
-        // ===== Ctrl+Enter 换行支持（不影响原HTML） =====
+        // ===== Ctrl+Enter 换行支持（捕获阶段优先执行） =====
         newInput.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
                 if (e.ctrlKey || e.metaKey) {
-                    // Ctrl+Enter（或 Mac 的 Command+Enter）→ 换行
+                    // Ctrl+Enter 或 Cmd+Enter → 换行
                     var start = this.selectionStart;
                     var end = this.selectionEnd;
                     var value = this.value;
@@ -713,9 +713,9 @@
                     e.stopPropagation();
                 }
                 // Shift+Enter → 默认换行（不拦截）
-                // 单独的 Enter → 原有逻辑（不拦截，由上一个监听器处理）
+                // 单独的 Enter → 不拦截，由 baicai.js 的监听器处理发送
             }
-        });
+        }, true); // true = 捕获阶段，优先于 baicai.js 的监听器
 
         isIntercepted = true;
         console.log('✅ 检测模块已启用（本地 + API + 云端AI）');
