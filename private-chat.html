@@ -6,701 +6,145 @@
     <title>白菜聊天室 - 私聊</title>
     <link rel="icon" href="baicai.svg" type="image/svg+xml">
 
+    <!-- ========== DNS 预解析 ========== -->
     <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
     <link rel="dns-prefetch" href="https://static.geetest.com">
+
+    <!-- ========== 预连接 ========== -->
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://static.geetest.com" crossorigin>
 
     <script src="baicaisupabase.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
     <script src="supabase.min.js"></script>
+    <script src="https://static.geetest.com/v4/gt4.js"></script>
+    <script src="bcyz.js"></script>
+
     <link rel="stylesheet" href="style.css">
 
     <style>
         /* ========== 私聊专用样式 ========== */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-            background: #e8ecf1;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 10px;
-        }
-
-        .app-container {
-            width: 100%;
-            max-width: 1200px;
-            height: 100vh;
-            max-height: 800px;
-            background: #ffffff;
-            border-radius: 24px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.05);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;background:#e8ecf1;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:10px}
+        .app-container{width:100%;max-width:1200px;height:100vh;max-height:800px;background:#ffffff;border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.05);display:flex;flex-direction:column;overflow:hidden}
 
         /* ===== 顶部栏 ===== */
-        .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 20px;
-            border-bottom: 1px solid #f0f2f5;
-            flex-shrink: 0;
-            background: #ffffff;
-        }
-
-        .header-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .header-left .back-btn {
-            background: none;
-            border: none;
-            color: #4a6cf7;
-            font-size: 1.2rem;
-            cursor: pointer;
-            padding: 4px 8px;
-            border-radius: 6px;
-            transition: background 0.2s;
-        }
-
-        .header-left .back-btn:hover {
-            background: #f0f2f5;
-        }
-
-        .header-left .chat-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: #1a1a2e;
-        }
-
-        .header-left .chat-subtitle {
-            font-size: 0.75rem;
-            color: #8a8a9e;
-            margin-left: 8px;
-        }
-
-        .header-right {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .header-right .logout-btn {
-            background: #f0f2f5;
-            border: 1px solid #e2e5ea;
-            color: #e74c3c;
-            padding: 6px 16px;
-            border-radius: 40px;
-            font-weight: 500;
-            cursor: pointer;
-            font-size: 0.78rem;
-            transition: all 0.2s;
-        }
-
-        .header-right .logout-btn:hover {
-            background: #fde8e8;
-            border-color: #f5c6c6;
-        }
-
-        .header-right .user-badge {
-            background: #f0f2f5;
-            padding: 4px 14px;
-            border-radius: 40px;
-            font-size: 0.8rem;
-            color: #2d2d3f;
-        }
+        .header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid #f0f2f5;flex-shrink:0;background:#ffffff}
+        .header-left{display:flex;align-items:center;gap:12px}
+        .header-left .back-btn{background:none;border:none;color:#4a6cf7;font-size:1.2rem;cursor:pointer;padding:4px 8px;border-radius:6px;transition:background 0.2s}
+        .header-left .back-btn:hover{background:#f0f2f5}
+        .header-left .chat-title{font-size:1.1rem;font-weight:600;color:#1a1a2e}
+        .header-left .chat-subtitle{font-size:0.75rem;color:#8a8a9e;margin-left:8px}
+        .header-right{display:flex;align-items:center;gap:12px}
+        .header-right .logout-btn{background:#f0f2f5;border:1px solid #e2e5ea;color:#e74c3c;padding:6px 16px;border-radius:40px;font-weight:500;cursor:pointer;font-size:0.78rem;transition:all 0.2s}
+        .header-right .logout-btn:hover{background:#fde8e8;border-color:#f5c6c6}
+        .header-right .user-badge{background:#f0f2f5;padding:4px 14px;border-radius:40px;font-size:0.8rem;color:#2d2d3f}
 
         /* ===== 主体布局 ===== */
-        .chat-layout {
-            display: flex;
-            flex: 1;
-            min-height: 0;
-            overflow: hidden;
-        }
-
-        /* ===== 在线列表 ===== */
-        .online-sidebar {
-            width: 240px;
-            flex-shrink: 0;
-            background: #f8f9fb;
-            padding: 16px 14px;
-            border-right: 1px solid #f0f2f5;
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-
-        .online-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 8px;
-            border-bottom: 1px solid #f0f2f5;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #2d2d3f;
-            flex-shrink: 0;
-        }
-
-        .online-title .count-badge {
-            font-size: 0.7rem;
-            background: #e8eaed;
-            color: #5a5a6e;
-            padding: 1px 10px;
-            border-radius: 40px;
-        }
-
-        .online-list-wrap {
-            flex: 1;
-            overflow-y: auto;
-            margin-top: 8px;
-            min-height: 0;
-        }
-
-        .online-list {
-            list-style: none;
-        }
-
-        .online-item {
-            display: flex;
-            align-items: center;
-            padding: 8px 10px;
-            border-radius: 8px;
-            gap: 10px;
-            cursor: pointer;
-            transition: background 0.15s;
-            border-bottom: 1px solid #f0f2f5;
-        }
-
-        .online-item:hover {
-            background: #f0f2f5;
-        }
-
-        .online-item.active {
-            background: rgba(74,108,247,0.12);
-        }
-
-        .online-item .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            flex-shrink: 0;
-        }
-
-        .online-item .status-dot.online {
-            background: #4ade80;
-            box-shadow: 0 0 0 2px rgba(74,222,128,0.15);
-        }
-
-        .online-item .status-dot.offline {
-            background: #c5cbd5;
-        }
-
-        .online-item .username {
-            flex: 1;
-            font-weight: 500;
-            font-size: 0.82rem;
-            color: #2d2d3f;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .online-item .user-ip {
-            font-size: 0.55rem;
-            color: #b0b8c5;
-            background: #f0f2f5;
-            padding: 1px 8px;
-            border-radius: 40px;
-            flex-shrink: 0;
-        }
-
-        .online-item .chat-indicator {
-            font-size: 0.7rem;
-            color: #4a6cf7;
-            display: none;
-        }
-
-        .online-item.active .chat-indicator {
-            display: inline;
-        }
-
-        /* ===== 消息区域 ===== */
-        .chat-main {
-            flex: 1;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            background: #fafbfc;
-            min-height: 0;
-        }
+        .chat-layout{display:flex;flex:1;min-height:0;overflow:hidden}
+        .chat-main{flex:1;min-width:0;display:flex;flex-direction:column;background:#fafbfc;min-height:0}
 
         /* ===== 私聊提示 ===== */
-        .private-banner {
-            background: #e8f0fe;
-            color: #1a3a6a;
-            padding: 6px 16px;
-            font-size: 0.82rem;
-            text-align: center;
-            border-bottom: 1px solid #d0dce8;
-            flex-shrink: 0;
-            display: none;
-        }
-
-        .private-banner.show {
-            display: block;
-        }
+        .private-banner{background:#e8f0fe;color:#1a3a6a;padding:6px 16px;font-size:0.82rem;text-align:center;border-bottom:1px solid #d0dce8;flex-shrink:0;display:none}
+        .private-banner.show{display:block}
+        .private-banner .close-private-btn{background:none;border:none;color:#4a6cf7;cursor:pointer;font-weight:600;margin-left:8px}
+        .private-banner .close-private-btn:hover{text-decoration:underline}
 
         /* ===== 消息列表 ===== */
-        .messages {
-            flex: 1;
-            overflow-y: auto;
-            padding: 16px 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            min-height: 0;
-        }
-
-        .messages .message {
-            max-width: 75%;
-            padding: 10px 16px;
-            border-radius: 10px;
-            font-size: 0.88rem;
-            line-height: 1.6;
-            word-wrap: break-word;
-            background: #ffffff;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-            align-self: flex-start;
-            animation: fadeIn 0.2s ease;
-        }
-
-        .messages .message.own {
-            background: #e8f4fd;
-            align-self: flex-end;
-            border-radius: 10px 10px 4px 10px;
-        }
-
-        .messages .message .msg-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.7rem;
-            color: #8a8a9e;
-            margin-bottom: 2px;
-            gap: 8px;
-        }
-
-        .messages .message .msg-author {
-            font-weight: 600;
-            color: #4a6cf7;
-        }
-
-        .messages .message .msg-time {
-            color: #b0b8c5;
-            font-size: 0.65rem;
-        }
-
-        .messages .message .msg-content {
-            word-break: break-word;
-        }
-
-        .messages .message .private-tag {
-            font-size: 0.55rem;
-            color: #4a6cf7;
-            background: #e8eaed;
-            padding: 0 8px;
-            border-radius: 40px;
-            margin-left: 6px;
-        }
-
-        .messages .empty-message {
-            text-align: center;
-            color: #b0b8c5;
-            padding: 40px 0;
-            font-size: 0.9rem;
-        }
-
-        .messages .empty-message span {
-            display: block;
-            font-size: 0.75rem;
-            margin-top: 4px;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(4px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .messages{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:6px;min-height:0}
+        .messages .message{max-width:75%;padding:10px 16px;border-radius:10px;font-size:0.88rem;line-height:1.6;word-wrap:break-word;background:#ffffff;box-shadow:0 1px 2px rgba(0,0,0,0.04);align-self:flex-start;animation:fadeIn 0.2s ease}
+        .messages .message.own{background:#e8f4fd;align-self:flex-end;border-radius:10px 10px 4px 10px}
+        .messages .message .msg-header{display:flex;justify-content:space-between;align-items:center;font-size:0.7rem;color:#8a8a9e;margin-bottom:2px;gap:8px}
+        .messages .message .msg-author{font-weight:600;color:#4a6cf7}
+        .messages .message .msg-time{color:#b0b8c5;font-size:0.65rem}
+        .messages .message .msg-content{word-break:break-word}
+        .messages .message .private-tag{font-size:0.55rem;color:#4a6cf7;background:#e8eaed;padding:0 8px;border-radius:40px;margin-left:6px}
+        .messages .empty-message{text-align:center;color:#b0b8c5;padding:40px 0;font-size:0.9rem}
+        .messages .empty-message span{display:block;font-size:0.75rem;margin-top:4px}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
 
         /* ===== 输入区域 ===== */
-        .input-area {
-            display: flex;
-            gap: 10px;
-            padding: 12px 20px 16px;
-            background: #ffffff;
-            border-top: 1px solid #f0f2f5;
-            flex-shrink: 0;
-        }
+        .input-area{display:flex;gap:10px;padding:12px 20px 16px;background:#ffffff;border-top:1px solid #f0f2f5;flex-shrink:0}
+        .input-area input{flex:1;padding:10px 16px;border:2px solid #e2e5ea;border-radius:12px;font-size:0.9rem;outline:none;background:#fafbfc;transition:border-color 0.2s;min-width:0}
+        .input-area input:focus{border-color:#4a6cf7}
+        .input-area .btn{padding:10px 24px;background:#4a6cf7;color:#fff;border:none;border-radius:12px;font-size:0.9rem;font-weight:600;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+        .input-area .btn:hover{background:#3a5cd9}
+        .input-area .btn:disabled{background:#b0b8c5;cursor:not-allowed}
 
-        .input-area input {
-            flex: 1;
-            padding: 10px 16px;
-            border: 2px solid #e2e5ea;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            outline: none;
-            background: #fafbfc;
-            transition: border-color 0.2s;
-            min-width: 0;
-        }
-
-        .input-area input:focus {
-            border-color: #4a6cf7;
-        }
-
-        .input-area .btn {
-            padding: 10px 24px;
-            background: #4a6cf7;
-            color: #fff;
-            border: none;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-        }
-
-        .input-area .btn:hover {
-            background: #3a5cd9;
-        }
-
-        .input-area .btn:disabled {
-            background: #b0b8c5;
-            cursor: not-allowed;
-        }
+        /* ===== 在线列表 ===== */
+        .online-sidebar{width:240px;flex-shrink:0;background:#f8f9fb;padding:16px 14px;border-right:1px solid #f0f2f5;display:flex;flex-direction:column;height:100%;min-height:0}
+        .online-title{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid #f0f2f5;font-size:0.9rem;font-weight:600;color:#2d2d3f;flex-shrink:0}
+        .online-title .count-badge{font-size:0.7rem;background:#e8eaed;color:#5a5a6e;padding:1px 10px;border-radius:40px}
+        .online-list-wrap{flex:1;overflow-y:auto;margin-top:8px;min-height:0}
+        .online-list-wrap::-webkit-scrollbar{width:3px}
+        .online-list-wrap::-webkit-scrollbar-thumb{background:#d5dbe3;border-radius:10px}
+        .online-list{list-style:none}
+        .online-item{display:flex;align-items:center;padding:8px 10px;border-radius:8px;gap:10px;cursor:pointer;transition:background 0.15s;border-bottom:1px solid #f0f2f5}
+        .online-item:hover{background:#f0f2f5}
+        .online-item.active{background:rgba(74,108,247,0.12)}
+        .online-item .status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+        .online-item .status-dot.online{background:#4ade80;box-shadow:0 0 0 2px rgba(74,222,128,0.15)}
+        .online-item .status-dot.offline{background:#c5cbd5}
+        .online-item .username{flex:1;font-weight:500;font-size:0.82rem;color:#2d2d3f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .online-item .user-ip{font-size:0.55rem;color:#b0b8c5;background:#f0f2f5;padding:1px 8px;border-radius:40px;flex-shrink:0}
+        .online-item .chat-indicator{font-size:0.7rem;color:#4a6cf7;display:none}
+        .online-item.active .chat-indicator{display:inline}
 
         /* ===== 底部 ===== */
-        .footer-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 20px;
-            border-top: 1px solid #f0f2f5;
-            font-size: 0.7rem;
-            color: #b0b8c5;
-            flex-shrink: 0;
-            background: #ffffff;
-        }
+        .footer-bar{background:#f8f9fb;border-radius:60px;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;border:1px solid #f0f2f5;margin-top:6px;flex-shrink:0}
+        .school-info{font-size:0.85rem;font-weight:600;color:#2d2d3f;text-align:center;flex:1}
 
-        .footer-bar .school-info {
-            font-weight: 600;
-            color: #2d2d3f;
-        }
-
-        /* ===== 响应式 ===== */
-        @media (max-width: 768px) {
-            .online-sidebar {
-                width: 48px;
-                min-width: 48px;
-                padding: 12px 6px;
-            }
-
-            .online-sidebar .online-title span:not(.count-badge) {
-                display: none;
-            }
-
-            .online-sidebar .online-item {
-                padding: 8px 4px;
-                justify-content: center;
-            }
-
-            .online-sidebar .online-item .username,
-            .online-sidebar .online-item .user-ip,
-            .online-sidebar .online-item .chat-indicator {
-                display: none;
-            }
-
-            .messages .message {
-                max-width: 90%;
-                font-size: 0.82rem;
-                padding: 8px 12px;
-            }
-
-            .header .header-left .chat-subtitle {
-                display: none;
-            }
-
-            .input-area {
-                padding: 10px 14px 14px;
-                flex-wrap: wrap;
-            }
-
-            .input-area input {
-                min-width: 100%;
-                font-size: 16px;
-            }
-
-            .input-area .btn {
-                width: 100%;
-                padding: 12px 0;
-            }
-
-            .app-container {
-                max-height: 100vh;
-                border-radius: 0;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .messages {
-                padding: 12px 14px;
-            }
-
-            .messages .message {
-                max-width: 92%;
-                font-size: 0.8rem;
-                padding: 8px 12px;
-            }
-
-            .header {
-                padding: 10px 14px;
-            }
-
-            .header .header-left .chat-title {
-                font-size: 0.95rem;
-            }
-
-            .header-right .user-badge {
-                display: none;
-            }
-        }
-
-        /* ===== 登录卡片（复用原样式） ===== */
-        .login-card {
-            background: #ffffff;
-            border-radius: 24px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.05);
-            padding: 32px 28px;
-            width: 100%;
-            max-width: 420px;
-            margin: auto;
-            border: 1px solid rgba(0,0,0,0.04);
-            position: relative;
-        }
-
-        .login-card h2 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #1a1a2e;
-            margin-bottom: 24px;
-            text-align: center;
-            letter-spacing: -0.3px;
-        }
-
-        .login-card .subtitle {
-            text-align: center;
-            color: #8a8a9e;
-            font-size: 0.85rem;
-            margin-bottom: 20px;
-        }
-
-        .login-card .form-group {
-            margin-bottom: 16px;
-        }
-
-        .login-card .form-group label {
-            display: block;
-            margin-bottom: 4px;
-            font-weight: 600;
-            color: #2d2d3f;
-            font-size: 0.82rem;
-        }
-
-        .login-card .form-group input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 2px solid #e2e5ea;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            background: #fafbfc;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .login-card .form-group input:focus {
-            border-color: #4a6cf7;
-        }
-
-        .login-card .btn {
-            width: 100%;
-            padding: 12px 0;
-            background: #4a6cf7;
-            color: #fff;
-            border: none;
-            border-radius: 12px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .login-card .btn:hover {
-            background: #3a5cd9;
-        }
-
-        .login-card .btn:disabled {
-            background: #b0b8c5;
-            cursor: not-allowed;
-        }
-
-        .login-card .error {
-            color: #e74c3c;
-            font-size: 0.8rem;
-            text-align: center;
-            margin-top: 4px;
-            display: none;
-        }
-
-        .login-card .login-footer {
-            text-align: center;
-            color: #8a8a9e;
-            font-size: 0.78rem;
-            margin-top: 14px;
-        }
-
-        .login-card .ip-badge {
-            background: #f0f2f5;
-            padding: 6px 14px;
-            border-radius: 10px;
-            font-size: 0.7rem;
-            color: #4a4a5a;
-            text-align: center;
-            margin-bottom: 16px;
-            word-break: break-all;
-        }
-
-        .login-card .remember-me {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin: 10px 0 12px;
-        }
-
-        .login-card .remember-me label {
-            font-size: 0.8rem;
-            color: #5a5a6e;
-            cursor: pointer;
-        }
-
-        .login-card .remember-me input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            accent-color: #4a6cf7;
-            cursor: pointer;
-        }
+        /* ===== 登录卡片 ===== */
+        .login-card{background:#ffffff;border-radius:24px;box-shadow:0 4px 24px rgba(0,0,0,0.05);padding:32px 28px;width:100%;max-width:420px;margin:auto;border:1px solid rgba(0,0,0,0.04);position:relative}
+        .login-card h2{font-size:1.5rem;font-weight:700;color:#1a1a2e;margin-bottom:24px;text-align:center;letter-spacing:-0.3px}
+        .login-card .subtitle{text-align:center;color:#8a8a9e;font-size:0.85rem;margin-bottom:20px}
+        .login-card .form-group{margin-bottom:16px}
+        .login-card .form-group label{display:block;margin-bottom:4px;font-weight:600;color:#2d2d3f;font-size:0.82rem}
+        .login-card .form-group input{width:100%;padding:12px 16px;border:2px solid #e2e5ea;border-radius:12px;font-size:0.9rem;background:#fafbfc;outline:none;transition:border-color 0.2s}
+        .login-card .form-group input:focus{border-color:#4a6cf7}
+        .login-card .btn{width:100%;padding:12px 0;background:#4a6cf7;color:#fff;border:none;border-radius:12px;font-size:0.95rem;font-weight:600;cursor:pointer;transition:all 0.2s}
+        .login-card .btn:hover{background:#3a5cd9}
+        .login-card .btn:disabled{background:#b0b8c5;cursor:not-allowed}
+        .login-card .error{color:#e74c3c;font-size:0.8rem;text-align:center;margin-top:4px;display:none}
+        .login-card .login-footer{text-align:center;color:#8a8a9e;font-size:0.78rem;margin-top:14px}
+        .login-card .ip-badge{background:#f0f2f5;padding:6px 14px;border-radius:10px;font-size:0.7rem;color:#4a4a5a;text-align:center;margin-bottom:16px;word-break:break-all}
+        .login-card .remember-me{display:flex;align-items:center;gap:8px;margin:10px 0 12px}
+        .login-card .remember-me label{font-size:0.8rem;color:#5a5a6e;cursor:pointer;margin:0;font-weight:400}
+        .login-card .remember-me input[type="checkbox"]{width:16px;height:16px;accent-color:#4a6cf7;cursor:pointer}
+        .login-card .auto-login-badge{position:absolute;top:12px;right:16px;font-size:0.6rem;background:#e8f5e9;color:#2e7d32;padding:2px 10px;border-radius:40px;border:1px solid #c8e6c9}
 
         /* ===== IP屏蔽 ===== */
-        .ip-block-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-            backdrop-filter: blur(6px);
-            z-index: 9999;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
+        .ip-block-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);backdrop-filter:blur(6px);z-index:9999;justify-content:center;align-items:center;flex-direction:column;padding:20px}
+        .ip-block-overlay.active{display:flex}
+        .ip-block-box{background:#ffffff;border-radius:24px;padding:32px 28px;max-width:400px;width:100%;text-align:center;box-shadow:0 30px 60px rgba(0,0,0,0.15)}
+        .ip-block-box h2{font-size:1.3rem;color:#1a1a2e;margin-bottom:4px}
+        .ip-block-box p{font-size:0.88rem;color:#5a5a6e;line-height:1.6}
+        .ip-block-box .ip-info{background:#f5f6f8;border-radius:12px;padding:12px 16px;margin:14px 0;font-family:monospace;font-size:0.85rem;color:#2d2d3f;word-break:break-all}
+        .ip-block-box .btn-close-block{background:#4a6cf7;color:#fff;border:none;padding:10px 32px;border-radius:40px;font-size:0.9rem;cursor:pointer;font-weight:600}
+        .ip-block-box .btn-close-block:hover{background:#3a5cd9}
+        .ip-block-box .support-text{font-size:0.75rem;color:#b0b8c5;margin-top:10px}
 
-        .ip-block-overlay.active {
-            display: flex;
-        }
+        #loginPanel{display:flex;justify-content:center;align-items:center;width:100%;height:100%;padding:20px}
+        #chatPanel{display:none;flex-direction:column;width:100%;height:100%}
+        .app-container{display:flex;flex-direction:column}
 
-        .ip-block-box {
-            background: #ffffff;
-            border-radius: 24px;
-            padding: 32px 28px;
-            max-width: 400px;
-            width: 100%;
-            text-align: center;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.15);
-        }
-
-        .ip-block-box h2 {
-            font-size: 1.3rem;
-            color: #1a1a2e;
-            margin-bottom: 4px;
-        }
-
-        .ip-block-box p {
-            font-size: 0.88rem;
-            color: #5a5a6e;
-            line-height: 1.6;
-        }
-
-        .ip-block-box .ip-info {
-            background: #f5f6f8;
-            border-radius: 12px;
-            padding: 12px 16px;
-            margin: 14px 0;
-            font-family: monospace;
-            font-size: 0.85rem;
-            color: #2d2d3f;
-            word-break: break-all;
-        }
-
-        .ip-block-box .btn-close-block {
-            background: #4a6cf7;
-            color: #fff;
-            border: none;
-            padding: 10px 32px;
-            border-radius: 40px;
-            font-size: 0.9rem;
-            cursor: pointer;
-            font-weight: 600;
-        }
-
-        .ip-block-box .support-text {
-            font-size: 0.75rem;
-            color: #b0b8c5;
-            margin-top: 10px;
-        }
-
-        #loginPanel {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            height: 100%;
-            padding: 20px;
-        }
-
-        #chatPanel {
-            display: none;
-            flex-direction: column;
-            width: 100%;
-            height: 100%;
-        }
-
-        .app-container {
-            display: flex;
-            flex-direction: column;
-        }
+        /* ===== 响应式 ===== */
+        @media (max-width:768px){.online-sidebar{width:48px;min-width:48px;padding:12px 6px}
+        .online-sidebar .online-title span:not(.count-badge){display:none}
+        .online-sidebar .online-item{padding:8px 4px;justify-content:center}
+        .online-sidebar .online-item .username,.online-sidebar .online-item .user-ip,.online-sidebar .online-item .chat-indicator{display:none}
+        .messages .message{max-width:90%;font-size:0.82rem;padding:8px 12px}
+        .input-area{padding:10px 14px 14px;flex-wrap:wrap}
+        .input-area input{min-width:100%;font-size:16px}
+        .input-area .btn{width:100%;padding:12px 0}
+        .app-container{max-height:100vh;border-radius:0}
+        .login-card{padding:24px 20px}}
+        @media (max-width:480px){.messages{padding:12px 14px}
+        .messages .message{max-width:92%;font-size:0.8rem;padding:8px 12px}
+        .header{padding:10px 14px}
+        .header .header-left .chat-title{font-size:0.95rem}
+        .header-right .user-badge{display:none}}
     </style>
 </head>
 <body>
@@ -708,6 +152,7 @@
 <!-- ===== IP屏蔽 ===== -->
 <div class="ip-block-overlay" id="ipBlockOverlay">
     <div class="ip-block-box">
+        <div class="lock-icon">❌️</div>
         <h2>访问受限</h2>
         <p>该聊天室仅限<strong>中国大陆地区</strong>用户访问</p>
         <p style="font-size:0.8rem;color:#8a8a9e;margin-top:2px;">本聊天室仅限中国大陆地区使用，不含港澳台。</p>
@@ -726,8 +171,9 @@
     <!-- ===== 登录面板 ===== -->
     <div id="loginPanel">
         <div class="login-card">
+            <span class="auto-login-badge" id="autoLoginBadge" style="display:none;">自动登录</span>
             <h2>白菜聊天室</h2>
-            <p class="subtitle">私聊 · 安全 · 即时</p>
+            <p class="subtitle">私聊</p>
             <div class="ip-badge" id="ipDisplay">IP获取中...</div>
             <div class="form-group">
                 <label>用户名</label>
@@ -745,13 +191,12 @@
             </div>
             <div id="loginError" class="error"></div>
             <button class="btn" id="enterBtn" disabled>进入聊天室</button>
-            <div class="login-footer">已有账号自动登录，新账号自动注册</div>
+            <div class="login-footer">已有账号直接登录，新账号自动注册</div>
         </div>
     </div>
 
     <!-- ===== 聊天面板 ===== -->
     <div id="chatPanel">
-        <!-- 顶部栏 -->
         <div class="header">
             <div class="header-left">
                 <button class="back-btn" id="backBtn" title="返回主聊天室">←</button>
@@ -764,15 +209,12 @@
             </div>
         </div>
 
-        <!-- 私聊提示条 -->
         <div class="private-banner" id="privateBanner">
             💬 正在与 <strong id="privateTargetName">用户</strong> 私聊
-            <button id="closePrivateBtn" style="background:none;border:none;color:#4a6cf7;cursor:pointer;font-weight:600;margin-left:8px;">退出</button>
+            <button class="close-private-btn" id="closePrivateBtn">退出</button>
         </div>
 
-        <!-- 主体 -->
         <div class="chat-layout">
-            <!-- 消息区域 -->
             <div class="chat-main">
                 <div class="messages" id="messageList">
                     <div class="empty-message">加载中...</div>
@@ -783,7 +225,6 @@
                 </div>
             </div>
 
-            <!-- 在线列表 -->
             <div class="online-sidebar">
                 <div class="online-title">
                     <span>在线</span>
@@ -797,7 +238,6 @@
             </div>
         </div>
 
-        <!-- 底部 -->
         <div class="footer-bar">
             <span></span>
             <span class="school-info">白菜聊天室 · 私聊版</span>
@@ -805,31 +245,17 @@
         </div>
     </div>
 </div>
-
-<!-- ===== 依赖 ===== -->
-<script src="baicaisupabase.js"></script>
-<script src="supabase.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
-<script src="https://static.geetest.com/v4/gt4.js"></script>
-<script src="bcyz.js"></script>
-
-<!-- ===== 主逻辑 ===== -->
 <script>
     (function() {
         'use strict';
 
-        // ================================================================
-        // 1. 状态
-        // ================================================================
         var currentUser = null;
         var currentChat = { type: 'public', userId: null, username: null };
         var onlineUsers = [];
         var messageInterval = null;
         var isCaptchaVerified = false;
 
-        // ================================================================
-        // 2. DOM
-        // ================================================================
+        // DOM
         var loginPanel = document.getElementById('loginPanel');
         var chatPanel = document.getElementById('chatPanel');
         var usernameInput = document.getElementById('username');
@@ -851,9 +277,7 @@
         var closePrivateBtn = document.getElementById('closePrivateBtn');
         var ipDisplay = document.getElementById('ipDisplay');
 
-        // ================================================================
-        // 3. 登录
-        // ================================================================
+        // ===== 登录 =====
         function handleLogin() {
             var username = usernameInput.value.trim();
             var password = passwordInput.value.trim();
@@ -874,18 +298,37 @@
             enterBtn.disabled = true;
             enterBtn.textContent = '登录中...';
 
-            // 这里调用你原有的登录逻辑
-            // 由于你已经有了 baicaisupabase.js，这里假设它提供了登录方法
-            // 如果登录成功，调用 onLoginSuccess
-            // 为了演示，用 setTimeout 模拟
-            setTimeout(function() {
-                // 模拟登录成功
-                currentUser = {
-                    id: 'user_' + Date.now(),
-                    username: username
-                };
-                onLoginSuccess();
-            }, 500);
+            // 调用 baicaisupabase.js 的登录函数
+            if (typeof window.loginUser === 'function') {
+                window.loginUser(username, password)
+                    .then(function(user) {
+                        currentUser = user;
+                        onLoginSuccess();
+                    })
+                    .catch(function(err) {
+                        loginError.textContent = err.message || '登录失败';
+                        loginError.style.display = 'block';
+                        enterBtn.disabled = false;
+                        enterBtn.textContent = '进入聊天室';
+                    });
+            } else {
+                // 降级方案：使用 baicaisupabase.js 的 supabase 客户端
+                supabase.from('users').select('*').eq('username', username).single()
+                    .then(function(res) {
+                        if (res.error) throw new Error('用户不存在');
+                        var user = res.data;
+                        var passwordMatch = bcrypt.compareSync(password, user.password_hash);
+                        if (!passwordMatch) throw new Error('密码错误');
+                        currentUser = user;
+                        onLoginSuccess();
+                    })
+                    .catch(function(err) {
+                        loginError.textContent = err.message || '登录失败';
+                        loginError.style.display = 'block';
+                        enterBtn.disabled = false;
+                        enterBtn.textContent = '进入聊天室';
+                    });
+            }
         }
 
         function onLoginSuccess() {
@@ -899,18 +342,12 @@
             startPolling();
         }
 
-        // ================================================================
-        // 4. 消息
-        // ================================================================
+        // ===== 消息 =====
         function loadMessages() {
-            var query = supabase
-                .from('messages')
-                .select('*')
-                .order('created_at', { ascending: true });
+            var query = supabase.from('messages').select('*').order('created_at', { ascending: true });
 
             if (currentChat.type === 'private') {
-                query = query
-                    .or('user_id.eq.' + currentUser.id + ',receiver_id.eq.' + currentUser.id);
+                query = query.or('user_id.eq.' + currentUser.id + ',receiver_id.eq.' + currentUser.id);
             }
 
             query.limit(200).then(function(response) {
@@ -925,9 +362,7 @@
                         return isSender || isReceiver;
                     });
                 } else {
-                    filtered = data.filter(function(msg) {
-                        return !msg.receiver_id;
-                    });
+                    filtered = data.filter(function(msg) { return !msg.receiver_id; });
                 }
 
                 renderMessages(filtered);
@@ -964,10 +399,7 @@
                     <div class="msg-content">${msg.content}</div>
                 `;
 
-                if (isOwn) {
-                    div.classList.add('own');
-                }
-
+                if (isOwn) div.classList.add('own');
                 messageList.appendChild(div);
             });
 
@@ -997,7 +429,6 @@
                 sendBtn.disabled = false;
                 messageInput.value = '';
                 messageInput.focus();
-
                 if (response.error) throw response.error;
                 loadMessages();
             }).catch(function(error) {
@@ -1010,14 +441,10 @@
         }
 
         function scrollToBottom() {
-            setTimeout(function() {
-                messageList.scrollTop = messageList.scrollHeight;
-            }, 50);
+            setTimeout(function() { messageList.scrollTop = messageList.scrollHeight; }, 50);
         }
 
-        // ================================================================
-        // 5. 在线用户
-        // ================================================================
+        // ===== 在线用户 =====
         function loadOnlineUsers() {
             supabase.from('online_users').select('*').then(function(response) {
                 if (response.error) throw response.error;
@@ -1058,13 +485,10 @@
                 onlineList.appendChild(li);
             });
 
-            // 更新在线人数
             onlineCount.textContent = count;
         }
 
-        // ================================================================
-        // 6. 私聊
-        // ================================================================
+        // ===== 私聊 =====
         function startPrivateChat(userId, username) {
             if (userId === currentUser.id) {
                 alert('不能和自己私聊');
@@ -1077,7 +501,6 @@
             chatTitle.textContent = '私聊';
             chatSubtitle.textContent = '与 ' + username;
 
-            // 高亮在线列表
             document.querySelectorAll('.online-item').forEach(function(item) {
                 item.classList.remove('active');
                 var indicator = item.querySelector('.chat-indicator');
@@ -1107,9 +530,7 @@
             loadMessages();
         }
 
-        // ================================================================
-        // 7. 轮询
-        // ================================================================
+        // ===== 轮询 =====
         function startPolling() {
             if (messageInterval) clearInterval(messageInterval);
             messageInterval = setInterval(function() {
@@ -1118,9 +539,7 @@
             }, 3000);
         }
 
-        // ================================================================
-        // 8. 登出
-        // ================================================================
+        // ===== 登出 =====
         function logout() {
             if (messageInterval) clearInterval(messageInterval);
             currentUser = null;
@@ -1128,65 +547,61 @@
             loginPanel.style.display = 'flex';
             loginError.textContent = '已退出';
             loginError.style.display = 'block';
-            setTimeout(function() {
-                loginError.style.display = 'none';
-            }, 2000);
+            setTimeout(function() { loginError.style.display = 'none'; }, 2000);
         }
 
-        // ================================================================
-        // 9. 返回主聊天室
-        // ================================================================
+        // ===== 返回主聊天室 =====
         function goBack() {
             window.location.href = 'index.html';
         }
 
-        // ================================================================
-        // 10. 事件绑定
-        // ================================================================
+        // ===== 事件绑定 =====
         enterBtn.addEventListener('click', handleLogin);
-
-        usernameInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') passwordInput.focus();
-        });
-
-        passwordInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') enterBtn.click();
-        });
-
+        usernameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') passwordInput.focus(); });
+        passwordInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') enterBtn.click(); });
         sendBtn.addEventListener('click', sendMessage);
-
         messageInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendBtn.click();
-            }
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendBtn.click(); }
         });
-
         logoutBtn.addEventListener('click', logout);
         backBtn.addEventListener('click', goBack);
         closePrivateBtn.addEventListener('click', closePrivateChat);
 
-        // ================================================================
-        // 11. IP
-        // ================================================================
-        // 加载IP显示
+        // ===== IP =====
         fetch('https://api.ip.sb/geoip')
             .then(function(res) { return res.json(); })
-            .then(function(data) {
-                ipDisplay.textContent = data.ip + ' (' + (data.country || '未知') + ')';
-            })
-            .catch(function() {
-                ipDisplay.textContent = '获取IP失败';
-            });
+            .then(function(data) { ipDisplay.textContent = data.ip + ' (' + (data.country || '未知') + ')'; })
+            .catch(function() { ipDisplay.textContent = '获取IP失败'; });
 
-        // ================================================================
-        // 12. 初始化
-        // ================================================================
+        // ===== 极验验证码（使用 bcyz.js 的初始化方式） =====
+        // bcyz.js 会自动初始化，只需要在验证成功后设置 isCaptchaVerified = true
+        // 如果 bcyz.js 没有自动初始化，手动调用
+        if (typeof initGeetest4 === 'function') {
+            try {
+                initGeetest4({
+                    captchaId: '你的极验ID',
+                    product: 'popup',
+                    language: 'zh-cn'
+                }, function(captchaObj) {
+                    captchaObj.onReady(function() {
+                        console.log('极验验证码已就绪');
+                    }).onSuccess(function() {
+                        isCaptchaVerified = true;
+                        document.getElementById('captchaResetHint').style.display = 'none';
+                        enterBtn.disabled = false;
+                    }).onError(function() {
+                        isCaptchaVerified = false;
+                    });
+                    captchaObj.verify();
+                });
+            } catch (e) {
+                console.warn('极验验证码初始化失败:', e);
+            }
+        }
+
         console.log('私聊聊天室已加载');
         loginPanel.style.display = 'flex';
         chatPanel.style.display = 'none';
-
-        // 暴露 supabase 给浏览器
         window.__supabase = supabase;
 
     })();
