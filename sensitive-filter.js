@@ -699,13 +699,21 @@
 
         newBtn.addEventListener('click', handleSend);
 
+        // ===== Ctrl+Enter 换行支持（不影响原HTML） =====
         newInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!newBtn.disabled) {
-                    newBtn.click();
+            if (e.key === 'Enter') {
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl+Enter（或 Mac 的 Command+Enter）→ 换行
+                    var start = this.selectionStart;
+                    var end = this.selectionEnd;
+                    var value = this.value;
+                    this.value = value.substring(0, start) + '\n' + value.substring(end);
+                    this.selectionStart = this.selectionEnd = start + 1;
+                    e.preventDefault();
+                    e.stopPropagation();
                 }
+                // Shift+Enter → 默认换行（不拦截）
+                // 单独的 Enter → 原有逻辑（不拦截，由上一个监听器处理）
             }
         });
 
