@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -71,15 +72,8 @@
             <!-- 聊天主区域 -->
             <div class="chat-main">
                 <div class="chat-header">
-                    <div class="header-left">
-                        <span class="user-badge" id="userInfo">加载中...</span>
-                    </div>
-                    <div class="header-right">
-                        <button class="private-entry-btn" id="privateEntryBtn" title="私聊">
-                            私聊
-                        </button>
-                        <button class="logout-btn" id="logoutBtn">退出登录</button>
-                    </div>
+                    <span class="user-badge" id="userInfo">加载中...</span>
+                    <button class="logout-btn" id="logoutBtn">退出登录</button>
                 </div>
                 <div id="warningMessage" class="warning"></div>
                 <div class="messages" id="messageList"></div>
@@ -127,18 +121,5 @@
 
 <script src="baicai.js"></script>
 <script src="sensitive-filter.js"></script>
-
-<script>
-    (function() {
-        var privateBtn = document.getElementById('privateEntryBtn');
-        if (privateBtn) {
-            privateBtn.addEventListener('click', function() {
-                // 跳转到私聊页面
-                window.location.href = 'private-chat.html';
-            });
-        }
-    })();
-</script>
-
 </body>
 </html>
