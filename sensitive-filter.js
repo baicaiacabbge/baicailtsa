@@ -812,180 +812,63 @@
 
 })();
 // ============================================================
-// ===== 零闪烁消息去重（完全静默） =====
+// ===== 终极去重：拦截 innerHTML 赋值，防止闪烁 =====
 // ============================================================
 
 (function() {
     'use strict';
 
-    var renderedIds = new Set();
-    var isReady = false;
-    var pendingLocalMessages = [];
+    var lastRenderTime = 0;
+    var messageList = document.getElementById('messageList');
 
-    function startDedup() {
-        var messageList = document.getElementById('messageList');
-        if (!messageList) {
-            setTimeout(startDedup, 300);
-            return;
-        }
-
-        isReady = true;
-
-        // ---------- 1. 扫描已有消息 ----------
-        function scanExisting() {
-            var items = messageList.querySelectorAll('.message');
-            for (var i = 0; i < items.length; i++) {
-                var id = items[i].dataset.id;
-                if (id) renderedIds.add(id);
+    if (!messageList) {
+        var waitForList = setInterval(function() {
+            var el = document.getElementById('messageList');
+            if (el) {
+                clearInterval(waitForList);
+                hijackInnerHTML(el);
             }
-        }
-        scanExisting();
+        }, 300);
+    } else {
+        hijackInnerHTML(messageList);
+    }
 
-        // ---------- 2. 劫持所有添加消息的方式 ----------
-        var originalAppend = messageList.appendChild.bind(messageList);
-        var originalInsert = messageList.insertBefore.bind(messageList);
+    function hijackInnerHTML(list) {
+        var originalDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
+        var originalSetter = originalDescriptor.set;
 
-        function handleMessageNode(node) {
-            if (node.nodeType === 1 && node.classList && node.classList.contains('message')) {
-                var id = node.dataset.id;
-                if (id) {
-                    if (renderedIds.has(id)) {
-                        return false;
-                    }
-                    renderedIds.add(id);
-                    return true;
-                }
-                return true;
-            }
-            return true;
-        }
+        Object.defineProperty(list, 'innerHTML', {
+            get: function() {
+                return originalDescriptor.get.call(this);
+            },
+            set: function(value) {
+                var now = Date.now();
 
-        // appendChild
-        messageList.appendChild = function(node) {
-            if (handleMessageNode(node)) {
-                return originalAppend(node);
-            }
-            return node;
-        };
-
-        // insertBefore
-        messageList.insertBefore = function(newNode, refNode) {
-            if (handleMessageNode(newNode)) {
-                return originalInsert(newNode, refNode);
-            }
-            return newNode;
-        };
-
-        // ---------- 3. MutationObserver 实时清理重复 ----------
-        var observer = new MutationObserver(function(mutations) {
-            var toRemove = [];
-
-            mutations.forEach(function(mutation) {
-                mutation.addedNodes.forEach(function(node) {
-                    if (node.nodeType === 1) {
-                        // 直接是消息
-                        if (node.classList && node.classList.contains('message')) {
-                            var id = node.dataset.id;
-                            if (id && renderedIds.has(id)) {
-                                toRemove.push(node);
-                            }
-                        }
-                        // 子元素包含消息
-                        var subs = node.querySelectorAll ? node.querySelectorAll('.message') : [];
-                        for (var i = 0; i < subs.length; i++) {
-                            var sub = subs[i];
-                            var subId = sub.dataset.id;
-                            if (subId && renderedIds.has(subId)) {
-                                toRemove.push(sub);
-                            }
-                        }
-                    }
-                });
-            });
-
-            // 移除重复消息（批量）
-            for (var i = 0; i < toRemove.length; i++) {
-                if (toRemove[i].parentNode) {
-                    toRemove[i].remove();
-                }
-            }
-            // 如果移除了重复消息，重新扫描
-            if (toRemove.length > 0) {
-                renderedIds.clear();
-                scanExisting();
-            }
-        });
-
-        observer.observe(messageList, {
-            childList: true,
-            subtree: true
-        });
-
-        // ---------- 4. 劫持 renderMessages（如果存在） ----------
-        if (typeof renderMessages === 'function') {
-            var originalRender = renderMessages;
-            renderMessages = function(messages) {
-                var newMessages = [];
-                var duplicateCount = 0;
-
-                for (var i = 0; i < messages.length; i++) {
-                    var msg = messages[i];
-                    var id = msg.id;
-                    if (id) {
-                        if (renderedIds.has(id)) {
-                            duplicateCount++;
-                            continue;
-                        }
-                        renderedIds.add(id);
-                        newMessages.push(msg);
-                    } else {
-                        // 没有 ID 的消息，保留（以防万一）
-                        newMessages.push(msg);
-                    }
-                }
-
-                // 如果有重复消息被过滤掉，说明去重生效了，不闪了
-                if (duplicateCount > 0) {
-                    // 静默处理，不输出日志（避免 debugger 干扰）
-                }
-
-                // 只有新消息时才渲染
-                if (newMessages.length === 0 && messages.length > 0) {
+                // ✅ 100ms 内的重复赋值跳过
+                if (now - lastRenderTime < 300 && value !== '' && value !== null) {
                     return;
                 }
 
-                // 渲染新消息（不会导致闪烁，因为重复的被过滤了）
-                originalRender(newMessages);
-            };
-        }
+                if (value === '' || value === null) {
+                    originalSetter.call(this, value);
+                    lastRenderTime = now;
+                    return;
+                }
 
-        // ---------- 5. 暴露重置方法 ----------
-        window.__dedup = {
-            reset: function() {
-                renderedIds.clear();
-                scanExisting();
+                originalSetter.call(this, value);
+                lastRenderTime = now;
             },
-            count: function() {
-                return renderedIds.size;
-            }
-        };
-    }
-
-    // ---------- 启动 ----------
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(startDedup, 50);
-    } else {
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(startDedup, 50);
+            configurable: true
         });
     }
 
-    // 监听 chatPanel 出现（登录后）
     var panelCheck = setInterval(function() {
         var panel = document.getElementById('chatPanel');
-        if (panel && panel.style.display !== 'none' && panel.style.display !== '') {
-            if (!isReady) {
-                startDedup();
+        var list = document.getElementById('messageList');
+        if (panel && panel.style.display !== 'none' && panel.style.display !== '' && list) {
+            if (!list.__hijacked) {
+                hijackInnerHTML(list);
+                list.__hijacked = true;
                 clearInterval(panelCheck);
             }
         }
