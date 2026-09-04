@@ -809,69 +809,291 @@
     } else {
         setTimeout(init, 100);
     }
-
-})();
-// ============================================================
-// ===== 终极去重：拦截 innerHTML 赋值，防止闪烁 =====
+    // ============================================================
+// ===== 增量渲染去重（彻底告别闪烁） =====
 // ============================================================
 
 (function() {
     'use strict';
 
-    var lastRenderTime = 0;
-    var messageList = document.getElementById('messageList');
+    // 等待 baicai.js 加载完成
+    var maxWait = 50;
+    var waitCount = 0;
 
-    if (!messageList) {
-        var waitForList = setInterval(function() {
-            var el = document.getElementById('messageList');
-            if (el) {
-                clearInterval(waitForList);
-                hijackInnerHTML(el);
-            }
-        }, 300);
-    } else {
-        hijackInnerHTML(messageList);
+    function waitForBaicai() {
+        // 检查 baicai.js 的关键函数是否已定义
+        if (typeof renderMessages === 'function' && typeof loadMessages === 'function') {
+            console.log('✅ baicai.js 已加载，开始劫持');
+            hijackRender();
+            return true;
+        }
+
+        waitCount++;
+        if (waitCount > maxWait) {
+            console.warn('⚠️ baicai.js 加载超时，放弃劫持');
+            return false;
+        }
+
+        setTimeout(waitForBaicai, 200);
+        return false;
     }
 
-    function hijackInnerHTML(list) {
-        var originalDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'innerHTML');
-        var originalSetter = originalDescriptor.set;
+    function hijackRender() {
+        var messageList = document.getElementById('messageList');
+        if (!messageList) {
+            console.warn('⚠️ messageList 不存在');
+            return;
+        }
 
-        Object.defineProperty(list, 'innerHTML', {
-            get: function() {
-                return originalDescriptor.get.call(this);
-            },
-            set: function(value) {
-                var now = Date.now();
+        // 保存当前显示的消息 ID 集合
+        var displayedIds = new Set();
 
-                // ✅ 100ms 内的重复赋值跳过
-                if (now - lastRenderTime < 300 && value !== '' && value !== null) {
+        // 扫描当前已显示的消息 ID
+        function scanDisplayedIds() {
+            displayedIds.clear();
+            var items = messageList.querySelectorAll('.message');
+            for (var i = 0; i < items.length; i++) {
+                var id = items[i].dataset.id;
+                if (id) displayedIds.add(id);
+            }
+        }
+
+        // 初次扫描
+        scanDisplayedIds();
+
+        // ---------- 劫持 renderMessages ----------
+        var originalRender = renderMessages;
+
+        renderMessages = function(messages) {
+            // 如果没有消息列表，直接返回
+            if (!messageList) return;
+
+            // 如果消息数量为 0，清空列表
+            if (!messages || messages.length === 0) {
+                messageList.innerHTML = '<div style="text-align:center;color:#b0b8c5;padding:30px 0;font-size:0.85rem;">暂无消息</div>';
+                displayedIds.clear();
+                return;
+            }
+
+            // 只添加新消息（增量更新）
+            var newMessages = [];
+            var hasNew = false;
+
+            for (var i = 0; i < messages.length; i++) {
+                var msg = messages[i];
+                var id = msg.id;
+                if (id && !displayedIds.has(id)) {
+                    newMessages.push(msg);
+                    displayedIds.add(id);
+                    hasNew = true;
+                }
+            }
+
+            // 如果没有新消息，不刷新
+            if (!hasNew) {
+                return;
+            }
+
+            // 如果有新消息，只追加新消息，不重建整个列表
+            for (var j = 0; j < newMessages.length; j++) {
+                var msg = newMessages[j];
+                var div = createMessageElement(msg);
+                messageList.appendChild(div);
+            }
+
+            // 滚动到底部
+            messageList.scrollTop = messageList.scrollHeight;
+        };
+
+        // ---------- 创建单个消息元素 ----------
+        function createMessageElement(msg) {
+            var div = document.createElement('div');
+            div.className = 'message';
+            div.dataset.id = msg.id;
+
+            var user = msg.user || {};
+            var username = user.username || '未知';
+            var isMine = currentUser && msg.user_id === currentUser.id;
+            var time = new Date(msg.created_at).toLocaleString('zh-CN', { hour12: false });
+
+            var deleteBtn = isMine
+                ? '<button class="delete-btn" onclick="window.deleteMessageById(\'' + msg.id + '\')">删除</button>'
+                : '';
+
+            div.innerHTML = `
+                <div class="message-header">
+                    <span class="message-author">${escapeHtml(username)}</span>
+                    <span class="message-meta">
+                        <span class="message-time">${time}</span>
+                        ${deleteBtn}
+                    </span>
+                </div>
+                <div class="message-content">${escapeHtml(msg.content)}</div>
+            `;
+
+            return div;
+        }
+
+        // ---------- 劫持 loadMessages（用于处理删除和初始加载） ----------
+        // 注意：loadMessages 是 async 函数，但我们可以包装它
+        if (typeof loadMessages === 'function') {
+            var originalLoadMessages = loadMessages;
+
+            loadMessages = async function() {
+                // 如果是初次加载（列表为空），全量加载
+                if (messageList.children.length === 0) {
+                    await originalLoadMessages.call(this);
+                    scanDisplayedIds();
                     return;
                 }
 
-                if (value === '' || value === null) {
-                    originalSetter.call(this, value);
-                    lastRenderTime = now;
+                // 否则只增量更新
+                try {
+                    var { data, error } = await db
+                        .from('messages')
+                        .select('id, content, created_at, user:users ( id, username )')
+                        .order('created_at', { ascending: true });
+
+                    if (error) {
+                        console.error('加载消息失败', error);
+                        return;
+                    }
+
+                    // 用增量渲染
+                    renderMessages(data || []);
+                } catch (err) {
+                    console.error('加载消息异常', err);
+                }
+            };
+        }
+
+        // ---------- 劫持删除消息 ----------
+        // 删除消息时，直接从 DOM 移除，不重新加载
+        if (typeof window.deleteMessageById === 'function') {
+            var originalDelete = window.deleteMessageById;
+
+            window.deleteMessageById = async function(messageId) {
+                if (!currentUser) {
+                    showWarning('请先登录');
                     return;
                 }
 
-                originalSetter.call(this, value);
-                lastRenderTime = now;
-            },
-            configurable: true
+                try {
+                    var { error } = await db
+                        .from('messages')
+                        .delete()
+                        .eq('id', messageId)
+                        .eq('user_id', currentUser.id);
+
+                    if (error) {
+                        showWarning('删除失败：' + error.message);
+                        return;
+                    }
+
+                    // 从 DOM 中移除该消息
+                    var el = messageList.querySelector('[data-id="' + messageId + '"]');
+                    if (el) {
+                        el.remove();
+                        displayedIds.delete(messageId);
+                    }
+
+                    showWarning('消息已删除');
+                } catch (err) {
+                    showWarning('删除异常');
+                }
+            };
+        }
+
+        // ---------- 在删除消息按钮的事件中直接移除 DOM ----------
+        // 由于 deleteMessageById 已经被劫持，上面的逻辑已经处理了
+
+        // ---------- 监听 DOM 变化，同步 ID 集合 ----------
+        var observer = new MutationObserver(function() {
+            // 如果列表被清空了（比如重新加载），重新扫描
+            if (messageList.children.length === 0) {
+                displayedIds.clear();
+            }
+            // 定期扫描同步
+            setTimeout(scanDisplayedIds, 100);
+        });
+
+        observer.observe(messageList, {
+            childList: true,
+            subtree: true
+        });
+
+        // 定期同步（兜底）
+        setInterval(scanDisplayedIds, 2000);
+
+        // 暴露给全局
+        window.__renderHijack = {
+            scan: scanDisplayedIds,
+            getIds: function() { return displayedIds; }
+        };
+
+        console.log('✅ 增量渲染劫持成功');
+    }
+
+    // 转义函数
+    function escapeHtml(unsafe) {
+        if (!unsafe) return '';
+        return unsafe.replace(/[&<>"]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            if (m === '"') return '&quot;';
+            return m;
         });
     }
 
+    // 显示警告（复用 baicai.js 的 showWarning）
+    function showWarning(text) {
+        var warningDiv = document.getElementById('warningMessage');
+        if (warningDiv) {
+            warningDiv.textContent = text;
+            warningDiv.style.display = 'block';
+            setTimeout(function() { warningDiv.style.display = 'none'; }, 3000);
+        }
+    }
+
+    // 获取当前用户（从 baicai.js 的闭包中获取，或者从全局获取）
+    var currentUser = null;
+    try {
+        // 尝试从全局获取（如果 baicai.js 暴露了）
+        currentUser = window.currentUser || null;
+        // 也可以通过 DOM 解析
+        if (!currentUser) {
+            var userInfo = document.getElementById('userInfo');
+            if (userInfo && userInfo.textContent) {
+                // 从显示信息中提取用户名
+                var match = userInfo.textContent.match(/^(.*?)\s*\(/);
+                if (match) {
+                    currentUser = { username: match[1] };
+                }
+            }
+        }
+    } catch (e) {}
+
+    // 启动劫持
+    if (document.readyState === 'complete') {
+        waitForBaicai();
+    } else {
+        window.addEventListener('load', function() {
+            setTimeout(waitForBaicai, 500);
+        });
+    }
+
+    // 如果 chatPanel 是动态显示的，监听显示
     var panelCheck = setInterval(function() {
         var panel = document.getElementById('chatPanel');
-        var list = document.getElementById('messageList');
-        if (panel && panel.style.display !== 'none' && panel.style.display !== '' && list) {
-            if (!list.__hijacked) {
-                hijackInnerHTML(list);
-                list.__hijacked = true;
+        if (panel && panel.style.display !== 'none' && panel.style.display !== '') {
+            // 如果还没劫持成功，再次尝试
+            if (typeof renderMessages === 'function' && typeof loadMessages === 'function') {
+                hijackRender();
                 clearInterval(panelCheck);
             }
         }
-    }, 500);
+    }, 1000);
 
+})();
 })();
